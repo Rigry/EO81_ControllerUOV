@@ -23,6 +23,8 @@
 #define	BitIsSet(reg, bit)      ((reg & (1<<bit)) != 0)
 #define	BitIsClear(reg, bit)    ((reg & (1<<bit)) == 0)
 
+
+
 struct UartBufSt {					//структура работы с УАРТ на уровне отделенном от работы с регистрами
 	uint8_t Buf[UART_BUF_SIZE];		//буффер куда приходят, откуда уходят данные
 	uint8_t	N;						//количество переданных, принятых данных
@@ -76,6 +78,16 @@ enum MBCtrlRegE {
     UF  = 1,
     QTY_CTRL_REG,
 };
+
+// структура данных, хранящейся в еепром
+struct EEPROMst{
+	uint16_t 	DevN;	    // зав номер устройства
+	uint16_t 	uartset;
+	uint16_t 	mbadr;
+	uint16_t	UFmax;      // Максимальное значение с датчика за всё время работы 
+};
+
+#define FLASH_PAGE_ADR 0x08007C00
 
 #define  UF_SET			GPIOC->BSRR = GPIO_Pin_6
 #define  UF_RESET		GPIOC->BRR = GPIO_Pin_6			//перенес в макрос для отладки

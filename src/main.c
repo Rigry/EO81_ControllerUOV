@@ -6,9 +6,10 @@
 #include "new_menu.h"
 #include "kb.h"
 #include "communic.h"
-#include "defines.h"		//для модбаса
+#include "defines.h"	//для модбаса
 #include "MBMaster.h"	//для модбаса
 #include "MBSlave.h"	//для модбаса
+#include "eeprom.h"	//для модбаса
 
 
 
@@ -17,9 +18,6 @@
 
 #define  UZG_SET		GPIOB->BSRR = GPIO_Pin_12
 #define  UZG_RESET		GPIOB->BRR = GPIO_Pin_12
-
-//#define  UF_SET		GPIOC->BSRR = GPIO_Pin_6	//включить светодиод УФ ВКЛ //перенес в максрос для отладки
-//#define  UF_RESET		GPIOC->BRR = GPIO_Pin_6		//перенес в максрос для отладки
 
 #define  UZG_RON		GPIOB->BSRR = GPIO_Pin_11
 #define	 UZG_ROFF		GPIOB->BRR = GPIO_Pin_11
@@ -135,7 +133,7 @@ enum eTimer {
 };
 struct TimerSt Timer[QtyTimer];
 // Мастер
-struct UartBufSt maMasterUART;
+struct UartBufSt mbMasterUART;
 uint16_t MBUfLevel;
 uint16_t MBTemperature;
 uint16_t BadLamps[EXP_BOARD+1];	//флаги неработающих ламп (+1 на случай, если EXP_BOARD = 0, значение [0] для базовой платы)
@@ -147,6 +145,10 @@ void MBMasterWork(void);
 struct UartBufSt mbSlaveUART;
 struct MBRegSt mb;
 
+/////////////////////////////////////////////////////////////
+//  флэш имитация еепром 					 
+/////////////////////////////////////////////////////////////
+volatile struct EEPROMst eeprom;
 /////////////////////////////////////////////////////////////
 // Значение 100% УФ			
 /////////////////////////////////////////////////////////////
@@ -192,21 +194,17 @@ int main (void)
 	uf_level=get_uf_level();	//получаем уровень УФ
 	spi_init();
 	get_pars();					//ДК: читает чтото (наработка ламп точно) из еепрома
-	
-/*	////////////////////////////////////////////////////////////////////////////
-	//ДК: не ясно зачем это
-	BUF1[0]=0;				//Посылаем пустой пакет для обнуления буфера плат расширения
-	BUF1[1]=0;				//на том конце после инициализации должен обяз.-но придти ETX и буфер сбросится
-	PACK_SEND(BUF1,2);		//запаковать и послать
-*/	////////////////////////////////////////////////////////////////////////////	
+    
+    // значения в еепром по умолчанию
+    if (!EEPROMRead(&eeprom)) {
+        eeprom.DevN     = 0;
+        eeprom.mbadr    = 1;
+        eeprom.uartset  = 0;
+        eeprom.UFmax    = UF100PERCENT_BEGIN;
+    }
 
 	InitTimer();
-/*	for (i = 0; i < QtyTimer; i++) {
-		Timer[i].ET = 0;
-		Timer[i].IN = false;
-		Timer[i].Q = false;
-		Timer[i].PT = 0;
-	}*/
+
 	Timer[MBEndMes].PT = 6;	//// 4700 мкс для 9600 и 72МГц округлил до большего плюс 1
 	
 	
@@ -216,9 +214,9 @@ int main (void)
 	{	
 		MBMasterWork();
 		
-		if (maMasterUART.NeedSend != 0) {
-			PACK_SEND(maMasterUART.Buf, maMasterUART.NeedSend);
-			maMasterUART.NeedSend = 0;
+		if (mbMasterUART.NeedSend != 0) {
+			PACK_SEND(mbMasterUART.Buf, mbMasterUART.NeedSend);
+			mbMasterUART.NeedSend = 0;
 		}			
 		
 		Keyboard();
@@ -1085,12 +1083,12 @@ void USART3_IRQHandler(void)	//ДК: прерывание по приему ба
 	Timer[MBEndMes].IN = false;
 	UpdateTimer(&(Timer[MBEndMes]));
 	if(USART_GetITStatus(USART3, USART_IT_RXNE) != RESET) {
-		maMasterUART.Buf[maMasterUART.N] = (USART_ReceiveData(USART3) & 0xFF);
-		maMasterUART.N++;
-		if (maMasterUART.N >= UART_BUF_SIZE-1) {
-			maMasterUART.N = 0;
+		mbMasterUART.Buf[mbMasterUART.N] = (USART_ReceiveData(USART3) & 0xFF);
+		mbMasterUART.N++;
+		if (mbMasterUART.N >= UART_BUF_SIZE-1) {
+			mbMasterUART.N = 0;
 		}	
-/*		if (maMasterUART.Buf[0] == board_addr) {
+/*		if (mbMasterUART.Buf[0] == board_addr) {
 			GPIOB->BSRR = GPIO_Pin_15;	//Включаем Индикатор активности на шине
 		}*/
 	}
@@ -1110,7 +1108,7 @@ void SysTick_Handler(void)	//Modbus
 	}
 	UpdateTimer(&(Timer[MBEndMes]));
 	if (Timer[MBEndMes].Q) {
-		maMasterUART.MBEnd = true;
+		mbMasterUART.MBEnd = true;
 		Timer[MBEndMes].IN = false;
 		UpdateTimer(&(Timer[MBEndMes]));
 	}
@@ -1164,7 +1162,7 @@ void MBMasterWork(void)
 			break;
 		
 		case SensTrans:
-			eTmp = MBM03 (UF_T_ADDR,0,2,MBBuf,&(maMasterUART),&(Timer[MBFunc]));
+			eTmp = MBM03 (UF_T_ADDR,0,2,MBBuf,&(mbMasterUART),&(Timer[MBFunc]));
 			if (eTmp == FuncDoneNoErr) {
 				MBUfLevel = MBBuf[0];
 				MBTemperature = MBBuf[1];
@@ -1187,7 +1185,7 @@ void MBMasterWork(void)
 			break;
 			
 		case ExpRead:
-			eTmp = MBM03 (ExpTrasN,0,2,MBBuf,&(maMasterUART),&(Timer[MBFunc]));
+			eTmp = MBM03 (ExpTrasN,0,2,MBBuf,&(mbMasterUART),&(Timer[MBFunc]));
 			if (eTmp == FuncDoneNoErr) {
 				LampsQty[ExpTrasN] = MBBuf[0];
 				BadLamps[ExpTrasN] = MBBuf[1];
@@ -1205,7 +1203,7 @@ void MBMasterWork(void)
 			if (DeviceState.uf_on) {
 				SetBit(MBBuf[0],0);
 			}
-			eTmp = MBM16 (ExpTrasN,0,1,MBBuf,&(maMasterUART),&(Timer[MBFunc]));
+			eTmp = MBM16 (ExpTrasN,0,1,MBBuf,&(mbMasterUART),&(Timer[MBFunc]));
 			if (eTmp != FuncInWork) {
 				ExpNeedWrite = false;
 				eSt = Delay;
@@ -1257,6 +1255,7 @@ void USART1_Init(void)
     GPIOA->CRH   &= ~(GPIO_CRH_MODE10 | GPIO_CRH_CNF10);   //??????????? MODE ? CNF
     GPIOA->CRH   |=   GPIO_CRH_CNF10_0;                   //????, ?????? ?????????
     // настраиваем скорость,число стоповых и бит данных
+    // ДК: переделать в будущем на значения с еепрома
     USART1->BRR   =   0x1D4C;                            //скорость 9600 72000000/9600
     USART1->CR1  &=  ~USART_CR1_M;                       //8 бит данных
     USART1->CR2  &=  ~USART_CR2_STOP;                    //количество стоп бит:1

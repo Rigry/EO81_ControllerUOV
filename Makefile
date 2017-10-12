@@ -31,7 +31,8 @@ OPT = -O2
 # source path
 SOURCES_DIR =  
 SOURCES_DIR += Application
-SOURCES_DIR += user
+SOURCES_DIR += src
+SOURCES_DIR += src/usrlib
 SOURCES_DIR += spl
 SOURCES_DIR += spl/src
 SOURCES_DIR += spl
@@ -48,13 +49,14 @@ BUILD_DIR = build
 ######################################
 # C sources
 C_SOURCES =  
-C_SOURCES += ./user/display.c
-C_SOURCES += ./user/kb.c
-C_SOURCES += ./user/main.c
-C_SOURCES += ./user/MBMaster.c
-C_SOURCES += ./user/MBSlave.c
-C_SOURCES += ./user/new_menu.c
-C_SOURCES += ./user/crc.c
+C_SOURCES += ./src/main.c
+C_SOURCES += ./src/new_menu.c
+C_SOURCES += ./src/kb.c
+C_SOURCES += ./src/usrlib/display.c
+C_SOURCES += ./src/usrlib/MBMaster.c
+C_SOURCES += ./src/usrlib/MBSlave.c
+C_SOURCES += ./src/usrlib/crc.c
+C_SOURCES += ./src/usrlib/eeprom.c
 C_SOURCES += ./CMSIS/system_stm32f10x.c
 C_SOURCES += ./spl/src/misc.c
 C_SOURCES += ./spl/src/stm32f10x_usart.c
@@ -127,7 +129,8 @@ AS_INCLUDES =
 
 # C includes
 C_INCLUDES =  
-C_INCLUDES += -Iuser
+C_INCLUDES += -Isrc
+C_INCLUDES += -Isrc/usrlib
 C_INCLUDES += -Ispl
 C_INCLUDES += -Ispl/inc
 C_INCLUDES += -Ispl
