@@ -22,7 +22,7 @@ TARGET = EO81_ControllerUOV
 # debug build?
 DEBUG = 1
 # optimization
-OPT = -O2
+OPT = -Og
 
 
 #######################################
@@ -130,7 +130,6 @@ C_DEFS =
 AS_INCLUDES = 
 
 # C includes
-C_INCLUDES =  
 C_INCLUDES += -Isrc
 C_INCLUDES += -Isrc/usrlib
 C_INCLUDES += -Ispl

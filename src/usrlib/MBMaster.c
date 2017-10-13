@@ -9,9 +9,6 @@
 #include "stm32f10x.h" //для ARM
 
 
-
-
-
 /*
 #define MBFUNC03	(Buf->Buf[1] == 3)		//из спецификации на модбас чтение регистров мастером
 #define MBFUNC16	(Buf->Buf[1] == 16)		//из спецификации на модбас установка регистров мастером
@@ -26,7 +23,7 @@ enum MBMFuncOut MBM03
 	 uint16_t QtyReg,			//количество регистров
 	 uint16_t Buf[],			//записываемые данные 
 	 struct UartBufSt *UartBuf,	//буфер уарта
-	 struct TimerSt *Timer		//для таймаута
+	 eTimer_t Timer		        //для таймаута
 	)
 {
 	//Реализована автоматом
@@ -46,9 +43,6 @@ enum MBMFuncOut MBM03
     QtyByte = 0;
 	uint8_t i;
 	
-	//обновление сигнала таймера
-	UpdateTimer(Timer);	
-	
 	while (1) {
 		switch (Step) {
 		case Pack:
@@ -63,21 +57,20 @@ enum MBMFuncOut MBM03
 			UartBuf->Buf[7] = CRCpack / 256;
 			UartBuf->NeedSend = 8;
 			UartBuf->MBEnd = false;
-			UartBuf->N = 0;
-			Timer->PT = MB_TIMEOUT;
-			Timer->IN = true;
+            UartBuf->N = 0;
+            TimerSetTimeAndStart (Timer, MB_TIMEOUT);
 			Step = WaitAnswer;		
 			break;
 		
 		case WaitAnswer:
-			if (Timer->Q) {
+			if ( TimerEvent(Timer) ) {
+                TimerStop (Timer);
 				Step = Pack;
-				Timer->IN = false;
 				return (TimeoutErr);
 			} else if (UartBuf->MBEnd) {
 				UartBuf->MBEnd = false;
 				Step = LengthCheck;
-				Timer->IN = false;		
+				TimerStop (Timer);	
 			} else {
 				return (FuncInWork);
 			}
@@ -128,7 +121,7 @@ enum MBMFuncOut MBM16
 	 uint16_t QtyReg,			//количество регистров
 	 uint16_t Buf[],			//буфер для считанных данных
 	 struct UartBufSt *UartBuf,	//буфер уарта
-	 struct TimerSt *Timer		//для таймаута
+	 eTimer_t Timer		        //для таймаута
 	)
 {
 	//Реализована автоматом
@@ -146,9 +139,6 @@ enum MBMFuncOut MBM16
 	uint16_t CRCpack;
 	uint8_t QtyByte = 0;
 	uint8_t i;
-	
-	//обновление сигнала таймера
-	UpdateTimer(Timer);
 	
 	while (1) {
 		switch (Step) {
@@ -170,22 +160,20 @@ enum MBMFuncOut MBM16
 			UartBuf->Buf[QtyByte+1] = CRCpack / 256;
 			UartBuf->NeedSend = QtyByte+2;
 			UartBuf->MBEnd = false;
-			UartBuf->N = 0;
-			Timer->PT = MB_TIMEOUT;
-			Timer->IN = true;
+            UartBuf->N = 0;
+            TimerSetTimeAndStart (Timer, MB_TIMEOUT);
 			Step = WaitAnswer;		
 			break;
 		
 		case WaitAnswer:
-			if (Timer->Q) {
-				Step = Pack;
-				Timer->IN = false;
-				return (TimeoutErr);
+            if ( TimerEvent(Timer) ) {
+                TimerStop (Timer);
+                Step = Pack;
+                return (TimeoutErr);
 			} else if (UartBuf->MBEnd) {
-				
 				UartBuf->MBEnd = false;
 				Step = LengthCheck;
-				Timer->IN = false;		
+				TimerStop (Timer);	
 			} else {
 				return (FuncInWork);
 			}
@@ -244,31 +232,3 @@ uint16_t crc16(uint8_t *p, uint8_t len)
 }
 */
 
-/****************
-*	Таймер		*
-****************/
-void InitTimer(void)	//инициализация аппаратного таймера для ARM
-{
-	SysTick->LOAD = TIMER_TICK;						//Загрузка значения
-	SysTick->VAL = TIMER_TICK;						//Обнуляем таймеры и флаги 
- 
-	SysTick->CTRL =	SysTick_CTRL_CLKSOURCE_Msk 		//processor clock
-					| SysTick_CTRL_TICKINT_Msk;		//разрешение прерывания
-	
-	SysTick->CTRL |=  SysTick_CTRL_ENABLE_Msk;  	//запускает таймер определения конца пакета
-}
-void UpdateTimer(struct TimerSt *p)		//обновление выхода (по времени или En)
-{
-	if (p->IN) {
-		p->Q = (p->ET >= p->PT);
-	} else {
-		p->ET = 0;
-		p->Q = false;
-	}	
-}	
-void Tick(struct TimerSt *p)		//инкремент аппаратным таймером
-{
-	if (p->IN && !p->Q) {
-		p->ET++;
-	}
-}

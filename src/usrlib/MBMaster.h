@@ -14,6 +14,7 @@
 //#include <util/crc16.h>	// для AVR
 #include <stdbool.h>
 #include "defines.h"
+#include "timer.h"
 #include "crc.h"
 
 
@@ -31,30 +32,15 @@
 		FuncDoneNoErr = 255	//всё норм, можно работать дальше
 	};
 
-	/********************
-	*	Таймер			*
-	********************/
-	//структура таймера (пока не создам отдельный хидер), логика, как в ST
-	struct TimerSt {		//наименования из стиля Codesys
-		bool IN;			//разрешение работы
-		uint32_t PT;		//установленное время в мс
-		uint32_t ET;		//прошедшее время в мс, сбрасывается En (обязателен вызов функции UpdateTimer), инкрементируется аппаратным таймером
-		bool Q;				//флаг, что установленное время прошло
-	};
-	void InitTimer(void);					//инициализация аппаратного таймера для ARM
-	void UpdateTimer(struct TimerSt *);		//обновление выхода (по времени или сброс En)
-	void Tick(struct TimerSt *);			//инкремент аппаратным таймером	
-	
-	/*******************/
 	
 	//чтение регистров удаленного устройства (Modbus Master 03 function)
 	enum MBMFuncOut MBM03					
 		(uint8_t DevAddr,			//адрес устройства
 		 uint16_t RegAddr,			//адрес первого регистра
 		 uint16_t QtyReg,			//количество регистров
-		 uint16_t Buf[],				//записываемые данные (массив)
+		 uint16_t Buf[],			//записываемые данные (массив)
 		 struct UartBufSt *UartBuf,	//буфер уарта
-		 struct TimerSt *Timer		//для таймаута
+		 eTimer_t Timer		        //для таймаута
 		);	
 
 	//запись регистров удаленного устройства (Modbus Master 16 function)
@@ -62,9 +48,9 @@
 		(uint8_t DevAddr,			//адрес устройства
 		 uint16_t RegAddr,			//адрес первого регистра
 		 uint16_t QtyReg,			//количество регистров
-		 uint16_t Buf[],				//записываемые данные (массив)
+		 uint16_t Buf[],			//записываемые данные (массив)
 		 struct UartBufSt *UartBuf,	//буфер уарта
-		 struct TimerSt *Timer		//для таймаута
+		 eTimer_t Timer		        //для таймаута
 		);		
 
 	//эти функции типа приват, используються

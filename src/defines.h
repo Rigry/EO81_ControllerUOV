@@ -1,9 +1,3 @@
-/*
- * macros.h
- *
- * Created: 08.03.2017 7:11:01
- *  Author: dvk
- */ 
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -11,7 +5,9 @@
 #define DEFINES_H_
 
 #define MB_TIMEOUT 200
-#define TIMER_TICK  		1000*72-1	// 1000 мкс для 72МГц
+#define F_CPU   72000000
+//#define TIMER_TICK  		1000*72-1	// 1000 мкс для 72МГц
+
 
 #define UART_BUF_SIZE 255
 //#define QTY_IN_REG	1
@@ -87,11 +83,34 @@ struct EEPROMst{
 	uint16_t	UFmax;      // Максимальное значение с датчика за всё время работы 
 };
 
+// таймеры
+typedef enum {
+    MBFunc		= 0,
+    MBDelay 	= 1,
+    EndMesMBM	= 2,
+    test,
+    QtyTimers	
+} eTimer_t;
+
 #define FLASH_PAGE_ADR 0x08007C00
 
-#define  UF_SET			GPIOC->BSRR = GPIO_Pin_6
-#define  UF_RESET		GPIOC->BRR = GPIO_Pin_6			//перенес в макрос для отладки
+#define  UV_LED_SET			GPIOC->BSRR = GPIO_Pin_6
+#define  UV_LED_RESET		GPIOC->BRR = GPIO_Pin_6			//перенес сюда для отладки
 
+#define  ALARM_LED_SET	GPIOC->BSRR = GPIO_Pin_7
+#define  ALARM_LED_RESET	GPIOC->BRR = GPIO_Pin_7
+
+#define  US_LED_SET		GPIOB->BSRR = GPIO_Pin_12
+#define  US_LED_RESET	GPIOB->BRR = GPIO_Pin_12
+
+#define  US_ON	    	GPIOB->BSRR = GPIO_Pin_11
+#define	 US_OFF 		GPIOB->BRR = GPIO_Pin_11
+
+#define  UV_ON			GPIOB->BSRR = GPIO_Pin_10
+#define	 UV_OFF 		GPIOB->BRR = GPIO_Pin_10
+
+#define  CS_HIGH 		GPIOA->BSRR=GPIO_Pin_11
+#define  CS_LOW			GPIOA->BRR=GPIO_Pin_11
 
 
 
