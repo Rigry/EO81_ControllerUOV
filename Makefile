@@ -50,13 +50,14 @@ BUILD_DIR = build
 # C sources
 C_SOURCES =  
 C_SOURCES += ./src/main.c
-C_SOURCES += ./src/new_menu.c
-C_SOURCES += ./src/kb.c
+C_SOURCES += ./src/menu.c
+C_SOURCES += ./src/keyboard.c
 C_SOURCES += ./src/usrlib/display.c
 C_SOURCES += ./src/usrlib/MBMaster.c
 C_SOURCES += ./src/usrlib/MBSlave.c
 C_SOURCES += ./src/usrlib/crc.c
 C_SOURCES += ./src/usrlib/eeprom.c
+C_SOURCES += ./src/usrlib/stm32f1_deb.c
 C_SOURCES += ./CMSIS/system_stm32f10x.c
 C_SOURCES += ./spl/src/misc.c
 C_SOURCES += ./spl/src/stm32f10x_usart.c
@@ -64,6 +65,7 @@ C_SOURCES += ./spl/src/stm32f10x_gpio.c
 C_SOURCES += ./spl/src/stm32f10x_rcc.c
 C_SOURCES += ./spl/src/stm32f10x_rtc.c
 C_SOURCES += ./spl/src/stm32f10x_pwr.c
+C_SOURCES += ./spl/src/stm32f10x_flash.c
 
 
 

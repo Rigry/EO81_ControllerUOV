@@ -3,8 +3,8 @@
 #include "stm32f10x.h"
 #include "device_config.h"
 #include "display.h"
-#include "new_menu.h"
-#include "kb.h"
+#include "menu.h"
+#include "keyboard.h"
 #include "communic.h"
 #include "defines.h"	//для модбаса
 #include "MBMaster.h"	//для модбаса
@@ -159,6 +159,20 @@ uint16_t UF100Percent;
 
 int main (void)
 {
+    makeDebugVar();
+    // настройка тактирования на 72мГц
+    FLASH->ACR |= FLASH_ACR_PRFTBE;
+    FLASH_SetLatency (2);
+    RCC_HSEon ();
+    RCC_WaitHSEready ();
+    RCC_SetAHBprescaler (AHBnotdiv);
+    RCC_SetAPBprescaler (APBdiv2);
+    RCC_SetPLLmultiple (x9);
+    RCC_SetPLLsource (sHSE);
+    RCC_PLLon ();
+    RCC_WaitPLLready ();
+    RCC_SystemClockSwitch (SW_PLL);
+
 	static uint8_t i; 
 	uint16_t badlamps;
 	uint8_t  count;
