@@ -18,7 +18,7 @@
 //дуфайны для управления трансивером RS485
 #define		USART_MODE_TX()	GPIOA->BSRR = GPIO_Pin_15
 #define		USART_MODE_RX()	GPIOA->BRR  = GPIO_Pin_15
-#define   CMD_MODE_TX()		GPIOA->BSRR = GPIO_Pin_8
+#define     CMD_MODE_TX()		GPIOA->BSRR = GPIO_Pin_8
 #define 	CMD_MODE_RX()		GPIOA->BRR  = GPIO_Pin_8
 
 //ОпКоды для управления  платами

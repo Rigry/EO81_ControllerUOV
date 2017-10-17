@@ -18,7 +18,8 @@
 	
 	struct MBRegSt {
 		volatile uint16_t RegIn[QTY_IN_REG];
-		volatile uint16_t RegOut[QTY_OUT_REG];
+        volatile uint16_t RegOut[QTY_OUT_REG];
+        volatile uint16_t RegCtrl[QTY_CTRL_REG];
 		uint16_t RegInMinVal[QTY_IN_REG];
 		uint16_t RegInMaxVal[QTY_IN_REG];
 	};

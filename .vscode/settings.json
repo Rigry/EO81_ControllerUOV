@@ -9,6 +9,15 @@
         "stdbool.h": "c",
         "display.h": "c",
         "func.h": "c",
-        "crc.h": "c"
-    }
+        "crc.h": "c",
+        "keyboard.h": "c"
+    },
+    "clang.cflags": [
+        "-Isrc",
+        "-Isrc/usrlib",
+        "-Imcu-files",
+        "-Imcu-files/CMSIS",
+        "-Imcu-files/spl",
+        "-Imcu-files/spl/inc"
+    ]
 }

@@ -1,3 +1,9 @@
+#include <stdbool.h>
+#include <stdlib.h>
+#include "stm32f10x.h"
+#include "defines.h"
+#include "communic.h"	
+
 #ifndef FUNC_H
 #define FUNC_H
 
@@ -15,11 +21,11 @@ void save_pars(void);
 void get_pars(void);
 
 // ДК интерфейс с внешним миром
-void USART1_Init(void);
-void USART1_TX_DMA_Init(void);
-void USART1_RX_DMA_Init(void);
-void StartDMAChannel5(void);
-void StartDMAChannel4(unsigned int LengthBufer);
+void USART1_Init(uartset_t set);
+void USART1_TX_DMA_Init (uint32_t memAdr);
+void USART1_RX_DMA_Init (uint32_t memAdr, uint32_t bufSize);
+void StartSlaveDMA_USART_RX (void);
+void StartSlaveDMA_USART_TX (unsigned int LengthBufer);
 // ДК собирает пакет по правилам протокола и отправляет
 void PACK_SEND_CMD(uint8_t *BUF, uint8_t count);
 
@@ -45,10 +51,18 @@ uint8_t CHECK_BSY(void);
 uint16_t get_lamps(uint8_t board_num);		//опрашивает работающие лампы плат расширения
 uint8_t get_lamps_count(uint8_t plata);		//опрашивает количество установленных ламп
 
+// инит уарта и задание начальных значений регистров
+void MBslaveInit (void);
 // подпрограмма действия на нажатия клавиш
 void KeyboardAction (void);
+// подпрограмма работы мастера модбаса опрос внутренних плат
+void MBMasterWork(void);
 // подпрограмма действия на запросы по модбас извне
 void MBSlaveAction (void);
+// подпрограмма проверки работы установки
+void WorkCheckAndLeds (void);
+// подпрограмма работы с меню
+void Menu (void);
 
 
 

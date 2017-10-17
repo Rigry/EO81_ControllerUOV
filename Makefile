@@ -30,13 +30,11 @@ OPT = -Og
 #######################################
 # source path
 SOURCES_DIR =  
-SOURCES_DIR += Application
 SOURCES_DIR += src
 SOURCES_DIR += src/usrlib
-SOURCES_DIR += spl
-SOURCES_DIR += spl/src
-SOURCES_DIR += spl
-SOURCES_DIR += CMSIS
+SOURCES_DIR += mcu_files/spl
+SOURCES_DIR += mcu_files/spl/src
+SOURCES_DIR += mcu_files/CMSIS
  
 # firmware library path
 PERIFLIB_PATH = 
@@ -52,20 +50,21 @@ C_SOURCES =
 C_SOURCES += ./src/main.c
 C_SOURCES += ./src/menu.c
 C_SOURCES += ./src/keyboard.c
+C_SOURCES += ./src/func.c
 C_SOURCES += ./src/usrlib/display.c
 C_SOURCES += ./src/usrlib/MBMaster.c
 C_SOURCES += ./src/usrlib/MBSlave.c
 C_SOURCES += ./src/usrlib/crc.c
 C_SOURCES += ./src/usrlib/eeprom.c
 C_SOURCES += ./src/usrlib/stm32f1_deb.c
-C_SOURCES += ./CMSIS/system_stm32f10x.c
-C_SOURCES += ./spl/src/misc.c
-C_SOURCES += ./spl/src/stm32f10x_usart.c
-C_SOURCES += ./spl/src/stm32f10x_gpio.c
-C_SOURCES += ./spl/src/stm32f10x_rcc.c
-C_SOURCES += ./spl/src/stm32f10x_rtc.c
-C_SOURCES += ./spl/src/stm32f10x_pwr.c
-C_SOURCES += ./spl/src/stm32f10x_flash.c
+C_SOURCES += ./mcu_files/CMSIS/system_stm32f10x.c
+C_SOURCES += ./mcu_files/spl/src/misc.c
+C_SOURCES += ./mcu_files/spl/src/stm32f10x_usart.c
+C_SOURCES += ./mcu_files/spl/src/stm32f10x_gpio.c
+C_SOURCES += ./mcu_files/spl/src/stm32f10x_rcc.c
+C_SOURCES += ./mcu_files/spl/src/stm32f10x_rtc.c
+C_SOURCES += ./mcu_files/spl/src/stm32f10x_pwr.c
+C_SOURCES += ./mcu_files/spl/src/stm32f10x_flash.c
 
 
 
@@ -75,8 +74,7 @@ CPP_SOURCES =
 
 
 # ASM sources
-ASM_SOURCES = startup/startup_stm32f103xb.s
-#ASM_SOURCES += CMSIS/startup_stm32f10x_md.s
+ASM_SOURCES = mcu_files/startup_stm32f103xb.s
 
 
 ######################################
@@ -132,10 +130,9 @@ AS_INCLUDES =
 # C includes
 C_INCLUDES += -Isrc
 C_INCLUDES += -Isrc/usrlib
-C_INCLUDES += -Ispl
-C_INCLUDES += -Ispl/inc
-C_INCLUDES += -Ispl
-C_INCLUDES += -ICMSIS
+C_INCLUDES += -Imcu_files/spl
+C_INCLUDES += -Imcu_files/spl/inc
+C_INCLUDES += -Imcu_files/CMSIS
 
 
 # compile gcc flags
@@ -160,7 +157,7 @@ LDSCRIPT =
 # discovery
 #LDSCRIPT += linker/STM32F051R8Tx_FLASH.ld
 # EO78
-LDSCRIPT += linker/STM32F103RBTx_FLASH.ld
+LDSCRIPT += mcu_files/STM32F103RBTx_FLASH.ld
 
 # libraries
 LIBS = -lc -lm -lnosys

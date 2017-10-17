@@ -5,13 +5,13 @@
 #define DEFINES_H_
 
 #define MB_TIMEOUT 200
-#define F_CPU   72000000
-//#define TIMER_TICK  		1000*72-1	// 1000 мкс для 72МГц
+#define F_CPU   72000000UL
+#define DEVUNIQNUMBER	4		// для этой прошивки и этого устройства,
+                                // согласно таблице кодов устройств ЭО-76
 
 
 #define UART_BUF_SIZE 255
-//#define QTY_IN_REG	1
-//#define QTY_OUT_REG	2
+
 
 #define	SetBit(reg, bit)		reg |= (1<<bit)
 #define	ClearBit(reg, bit)		reg &= (~(1<<bit))
@@ -48,7 +48,7 @@ enum MBInRegE {
 enum MBOutRegE {
     Dev			= 0,	// код типа устройства
     DevN		= 1,	// заводской номер устройства
-    uartset 	= 2,    // когда все нули 9600-8-N-1
+    uartset 	= 2,    // когда все нули 9600-8-N-1, подробнее далее
     mbadr 		= 3,    // адрес (от 1 - 255)
     workFlags   = 4,
     curTemp     = 5,    // температура
@@ -72,7 +72,7 @@ enum MBOutRegE {
 enum MBCtrlRegE {
     US  = 0,
     UF  = 1,
-    QTY_CTRL_REG,
+    QTY_CTRL_REG
 };
 
 // структура данных, хранящейся в еепром
@@ -83,11 +83,30 @@ struct EEPROMst{
 	uint16_t	UFmax;      // Максимальное значение с датчика за всё время работы 
 };
 
+// битовое поле uartset
+typedef enum {
+    bd9600   = 0b000,
+    bd14400  = 0b001,
+    bd19200  = 0b010,
+    bd28800  = 0b011,
+    bd38400  = 0b100,
+    bd57600  = 0b101,
+    bd76800  = 0b110,
+    bd115200 = 0b111
+} bode_t;
+typedef struct {
+    bool    parityEn        : 1;
+    bool    parityEven      : 1;
+    uint8_t stopBitsMinus1  : 1;
+    bode_t  boud            : 3;
+} uartset_t;
+
 // таймеры
 typedef enum {
     MBFunc		= 0,
     MBDelay 	= 1,
     EndMesMBM	= 2,
+    MenuLedUpd,
     test,
     QtyTimers	
 } eTimer_t;

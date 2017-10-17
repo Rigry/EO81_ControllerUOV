@@ -39,7 +39,10 @@
                 "${workspaceRoot}/spl",
                 "${workspaceRoot}/spl/inc",
                 "${workspaceRoot}/src/usrlib",
-                "${workspaceRoot}/src"
+                "${workspaceRoot}/src",
+                "${workspaceRoot}/mcu_files/CMSIS",
+                "${workspaceRoot}/mcu_files/spl",
+                "${workspaceRoot}/mcu_files/spl/inc"
             ],
             "defines": [],
             "intelliSenseMode": "clang-x64",
