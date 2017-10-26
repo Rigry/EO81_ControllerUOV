@@ -3,10 +3,11 @@
 #include "display.h"
 #include "menu.h"
 #include "keyboard.h"
-#include "timer.h"
-#include "MBMaster.h"	//для модбаса
-#include "MBSlave.h"	//для модбаса
-#include "eeprom.h"     //для модбаса
+#include "defines.h"    //дк
+#include "timer.h"      //дк
+#include "MBMaster.h"	//дк
+#include "MBSlave.h"	//дк
+#include "eeprom.h"     //дк
 
 
 
@@ -24,19 +25,11 @@ volatile bool RxDataReady=false;
 volatile bool device_busy=false;
 bool TxCompleted=false;
 uint16_t lamps;
-uint16_t hourcounter[TOTAL_LAMPS];//счетчик наработки в часах
-//uint16_t oncounter;//счетчик включений
-uint8_t BUF1[70];//Буфер для приема и передачи сообщений по USART3
-//Буфер приемника команд управления контроллером от компьютера
-uint8_t CMD_BUF_RX[255];//командный буфер от управляющего RS-485
-uint8_t BuffTxd[255];
-//Буфер передатчика данных на компьютер
-uint8_t CMD_BUF_TX[255];
-uint8_t BuffRxd[255];
-//Флаг поступления запроса от компьютера
-volatile bool RxCMDReady=false;
-volatile uint8_t return_counter;//счетчик для возврата из меню
-volatile uint8_t uf_threshold;
+// счетчик наработки в часах
+uint16_t hourcounter[TOTAL_LAMPS];
+// счетчик для возврата из меню
+volatile uint8_t return_counter;
+
 union {
     struct Flags
     {
@@ -96,6 +89,19 @@ volatile struct EEPROMst eeprom;
 uint16_t UF100Percent;
 
 
+#define  US_ON	    	GPIOB->BSRR = GPIO_Pin_11; \
+    US_LED_SET; \
+    SET_MASK (mbSlave.RegOut[workFlags], US_ON_WORKFLAGS_MASK);
+#define	 US_OFF 		GPIOB->BRR = GPIO_Pin_11; \
+    US_LED_RESET; \
+    CLEAR_MASK (mbSlave.RegOut[workFlags], US_ON_WORKFLAGS_MASK);
+#define  UV_ON			GPIOB->BSRR = GPIO_Pin_10; \
+    UV_LED_SET; \
+    SET_MASK (mbSlave.RegOut[workFlags], UV_ON_WORKFLAGS_MASK);
+#define	 UV_OFF 		GPIOB->BRR = GPIO_Pin_10; \
+    UV_LED_RESET; \
+    CLEAR_MASK (mbSlave.RegOut[workFlags], UV_ON_WORKFLAGS_MASK);
+
 int main (void)
 {
 
@@ -115,17 +121,12 @@ int main (void)
     RCC_SystemClockSwitch (SW_PLL);
 
     //Сбрасываем состояние установки
-    DeviceState.val = 0;	
+    DeviceState.val = 0;
  
     RTC_Config();		// настраиваем часы реального времени на прерывание в 1 секунду 
     init_ports();		// настраиваем порты
     UART3_Init();		// Инициализация RS канала (внутренний)
-    USART_MODE_RX();	// RS на прием (внутренний)
-    USART1_RX_DMA_Init((uint32_t)mbSlaveUART.Buf, UART_BUF_SIZE); 
-    USART1_TX_DMA_Init((uint32_t)mbSlaveUART.Buf);    
-    CMD_MODE_RX();		// Интерфейс от компьютера на прием (внешний)
 
-    StartSlaveDMA_USART_RX();	//включаем на прием канал ДМА (внешний)
     
     ALARM_LED_SET; US_LED_SET; UV_LED_SET; //проверка испарвности индикаторов
     UV_OFF; US_OFF;
@@ -136,8 +137,6 @@ int main (void)
     DeviceState.flags.disp_red = 1; 	
     ALARM_LED_RESET; US_LED_RESET; UV_LED_RESET;
  
-    temperatura = get_temp();   //получаем температуру воды
-    uf_level = get_uf_level();  //получаем уровень УФ
     spi_init();
     get_pars();					
     
@@ -145,11 +144,22 @@ int main (void)
     if (!EEPROMRead(&eeprom)) {
         eeprom.DevN     = 0;
         eeprom.mbadr    = 1;
-        eeprom.uartset  = 0;
+        eeprom.uartset.bits.parityEn  = false;
+        eeprom.uartset.bits.parityEven = false;
+        eeprom.uartset.bits.stopBitsMinus1 = 0;
+        eeprom.uartset.bits.boud = bd9600;
+        eeprom.Tmax     = UF_OFF_TEMP;
+        eeprom.UFmin    = 40;
+        eeprom.LampsQty = TOTAL_LAMPS;
         eeprom.UFmax    = UF100PERCENT_BEGIN;
     }
 
     MBslaveInit();
+
+
+    USART_MODE_RX();	// RS на прием (внутренний)
+    CMD_MODE_RX();		// Интерфейс от компьютера на прием (внешний)
+    StartSlaveDMA_USART_RX();	//включаем на прием канал ДМА (внешний)
 
     // аппаратный на 1 мс
     TimerInit();
@@ -176,6 +186,7 @@ int main (void)
         if ( TimerEvent(MenuLedUpd) ) {
             WorkCheckAndLeds();
             Menu();
+            EEPROMUpd(&eeprom);
         }
 
         if (hourWorked) {
@@ -218,7 +229,7 @@ void RTC_IRQHandler(void)//секундное прерывание
         //ALARM_LED_SET
         if (DeviceState.flags.uf_on) {
             if (sec<3600) {
-                sec++;// тикаем час
+                sec++; // тикаем час
             } else {
                 sec=0;
                 hourWorked = true;
@@ -226,8 +237,8 @@ void RTC_IRQHandler(void)//секундное прерывание
         } 
 
         DeviceState.flags.disp_upd = 1;
-    } //if (RTC_GetITStatus(RTC_IT_SEC) != RESET)
-} //void RTC_IRQHandler(void)//секундное прерывание
+    } 
+} 
 
 //ДК: прерывание по приему байта внутренний протокол
 void USART3_IRQHandler(void)	
@@ -250,36 +261,25 @@ void USART3_IRQHandler(void)
 // конец приёма пакет модбас слейва (внешний)
 void USART1_IRQHandler(void)
 {
-    if (USART1->SR&USART_SR_IDLE) {
-        // ТУТ ВСЁ ПЕРЕДЕЛАТЬ
-        USART1->DR;//сбрасываем флаг IDLE последовательным чтением рег.Статуса и рег.данных
-        DMA1_Channel5->CNDTR;
-        flags.RxDataReady = 1;
-        StartSlaveDMA_USART_RX();
-        __NOP();
-    }  
-    
-    // а этот иф странный, наверно удалить надо
-    if(USART1->SR&USART_SR_TC) {
-        USART1->SR &= ~USART_SR_TC;
-        CMD_MODE_RX();//интерфейс на прием 
-        __NOP();
-    }  
+    if (USART1->SR & USART_SR_IDLE) {
+        // сбрасываем флаг IDLE последовательным чтением рег.Статуса и рег.данных
+        USART1->DR;
+        // пауза
+        TimerStart (EndMesMBS);
+        // запрет дма на приём
+        StopSlaveDMA_USART_RX();
+    }
 }
 
 // конец передачи пакета модбас слейв (внешний)
 void DMA1_Channel4_IRQHandler (void) 
 {
-    //ЕСЛИ ПРОШЛА ПЕРЕДАЧА В КАНАЛЕ ТО НАДО ПЕРЕКЛЮЧИТЬ ПЕРЕДАТЧИК
-    if(DMA1->ISR & DMA_ISR_TCIF4)
-    { }             
-    //???? ???????? ???????? ??????
-    if(DMA1->ISR & DMA_ISR_HTIF4)
-    { }             //???-?? ??????
-    //???? ????????? ?????? ??? ??????
-    if(DMA1->ISR & DMA_ISR_TEIF4) { }             //???-?? ??????
-    
-    DMA1->IFCR |= DMA_IFCR_CGIF4;                 //??????? ?????? GIF, TEIF, HTIF ? TCIF    
+    StopSlaveDMA_USART_TX();
+    StartSlaveDMA_USART_RX();
+    mbSlaveUART.NeedSend = 0;
+    mbSlaveUART.N = 0;
+    // сброс всех флагов прерываний
+    DMA1->IFCR |= DMA_IFCR_CGIF4;                 
 }
 
 void SysTick_Handler(void)
@@ -369,7 +369,7 @@ void save_pars(void)
     EEWrite(0x105, (DeviceLog.res_one >> 8));
     EEWrite(0x106, DeviceLog.res_log);
     EEWrite(0x107, (DeviceLog.res_log >> 8));
-    EEWrite(0x110, uf_threshold);
+
     EEWrite (0x300, (uint8_t)UF100Percent);
     EEWrite (0x301, (uint8_t)(UF100Percent >> 8) );
     
@@ -401,7 +401,7 @@ void get_pars()		//ДК: читает чтото (наработка ламп т
     DeviceLog.res_one|=(EERead(0x105)<<8);
     DeviceLog.res_log=EERead(0x106);
     DeviceLog.res_log|=(EERead(0x107)<<8);
-    uf_threshold=EERead(0x110); //порог срабатывания тревоги уф
+
     
     if (UF100Percent == 0) {
         UF100Percent = EERead (0x300);
@@ -414,87 +414,6 @@ void get_pars()		//ДК: читает чтото (наработка ламп т
     __enable_irq();		
 } //void get_pars()
  
-
-
-void PACK_SEND_CMD(uint8_t *BUF, uint8_t count)
-{
-    //uint8_t TEMP[255];//выходной обработанный массив
-    uint8_t i,j;
-    for(i = 255; i > 0; i--) BuffTxd[i] = 0;
-    j = 1;
-    for (i = 0; i < count;i++) {
-        if (BUF[i]==SOH || BUF[i]==ETX || BUF[i]==DLE) { //экранируем байты содержащие специальные символы
-            BuffTxd[j]=DLE;j++;BuffTxd[j]=~BUF[i];j++;
-        } else {
-            BuffTxd[j]=BUF[i];      // или просто копируем в буфер
-            j++;
-        }
-    }
-    BuffTxd[0]=SOH; BuffTxd[j]=ETX;
-    StartSlaveDMA_USART_TX(j+1);    // хуячим по ДМА
-}
- 
-
- 
-void UNPACK(uint8_t *BUF)//функция распаковки пакета На выходе- ADDR KOP BYTE1...BYTEn
-{
-    uint8_t i,j;
-    i=0;//индекс массива
-    j=0;//Индекс преобразователь 
-    while(BUF[j]!=ETX) {	
-        if (BUF[j]==DLE) { //если попался экр.символ-удаляем и на его место-следующий байт инвертировав
-            BUF[i]=~BUF[++j];
-            j++;i++;
-        } else {
-            BUF[i]=BUF[j];  // или просто копируем в буфер
-            j++;i++;
-        }
-    }
-}
-
-void UNPACK_RECEIVE(unsigned char *BUFRX)
-{
-    // ЭТО ВСЁ ЗАМЕНЯЕТЬССЯ НА модбас слейв
-    unsigned char i,j;
-    //?????? ???????? ???????
-    for(i = 255; i > 0; i--) {
-        CMD_BUF_RX[i]=0;//очищаем приемный буфер
-    }	
-    
-    i=0;
-    for(i = 0; BUFRX[i]!=SOH; i++) {
-        if (i==255) {
-          flags.RxDataReady=0;     //??? ?????? ??? ???????, ?.?. ?? ?????????? ????????? ??????
-          flags.RxPacketErr=1;     //?????? ?????? ?????? ??????
-          return;
-        }
-    }
-    
-    i++;
-    j=0;
-    //????????? ?????? ?????? ?? ?????????? ???????
-    for (;BUFRX[i]!=ETX;i++) {
-        if (BUFRX[i]==DLE) { //????????????? ????? ?????????? ??????????? ???????
-            i=i+1;
-            CMD_BUF_RX[j]=~BUFRX[i];j++;
-        } else {
-            CMD_BUF_RX[j]=BUFRX[i];  // ??? ?????? ???????? ? ?????
-            j++;
-        }
-        if ((i==255)&&(BUFRX[i]!=ETX)) {
-            flags.RxDataReady=0;     //??? ?????? ??? ???????, ?.?. ?? ?????????? ???????? ??????
-            flags.RxPacketErr=1;     //?????? ?????? ?????? ??????
-            return;
-        }
-    }
-         
-    flags.RxDataReady=1;     //??? ?????? ??? ???????, ?.?. ?? ?????????? ???????? ??????
-    flags.RxPacketErr=0;     //?????? ?????? ?????? ??????
-    RxCMDReady=true;
-}
-
-
-
 
 void PACK_SEND(uint8_t *BUF, uint8_t count)
 {
@@ -535,6 +454,19 @@ void MBMasterWork(void)
             if (ExpTrasN == EXP_BOARD) {
                 eSt = SensTrans;
                 ExpTrasN = 0;
+                // перевод из маски на 10 в маску на 16
+                // подумать еще с установкой, тут явно неверно
+                // перенести туда, когда пришёл норм ответ от платы расширения
+                for (uint32_t i = 0; i < (TOTAL_LAMPS - 10); i++) {
+                    uint8_t board;
+                    board = i / 10 + 1;
+                    bool tmp;
+                    tmp = BitIsClear(BadLamps[board], i % 10);
+                    uint8_t reg;
+                    reg = (i + 10) / 16;
+                    SetBit(mbSlave.RegOut[reg + FlagLamps1], (uint16_t)tmp << ( (i + 10) % 16) );
+                }
+
             } else {
                 eSt = ExpRead;
                 ExpNeedWrite = false;	//после чтения необходима запись (нет)
@@ -543,17 +475,18 @@ void MBMasterWork(void)
         break;
         
         case SensTrans:
-            eTmp = MBM03 (
-                            UF_T_ADDR,          // адрес устройства
+            eTmp = MBM03 (  UF_T_ADDR,          // адрес устройства
                             0,                  // адрес регистра
                             2,                  // количество регистров
                             MBBuf,              // сюда приходят данные
                             &(mbMasterUART),    // структура уарта
                             MBFunc              // таймер для таймаута
-                         );
+            );
             if (eTmp == FuncDoneNoErr) {
                 MBUfLevel = MBBuf[0];
                 MBTemperature = MBBuf[1];
+                mbSlave.RegOut[curTemp] = MBTemperature;
+                mbSlave.RegOut[UFlev] = get_uf_level();
                 eSt = Delay;
             } 
             if (eTmp != FuncInWork) {
@@ -651,33 +584,85 @@ void KeyboardAction (void)
         break;
                     
         case ENTER_HOLD: 		// 
-            device_busy=true;
+            device_busy = true;
             display_menu();
-            DeviceState.flags.disp_red=1;
-            device_busy=false;
+            DeviceState.flags.disp_red = 1;
+            device_busy = false;
         break;
     } // switch KEYBOARD end
 }
 
 void MBSlaveAction (void)
 {
+    if ( TimerEvent (EndMesMBS) ) {
+        TimerStop (EndMesMBS);
+        mbSlaveUART.MBEnd = true;
+        mbSlaveUART.N = UARTGetQtyReceiveBytes ();
+        MBSlave (&mbSlaveUART, &mbSlave, mbSlaveAdr);
+        if (mbSlaveUART.NeedSend != 0) {
+            // не знаю почему, но последние 2 байта не шлёт, потому +2
+            StartSlaveDMA_USART_TX(mbSlaveUART.NeedSend + 2);
+        } else {
+            StartSlaveDMA_USART_RX();
+        }
+        mbSlaveUART.MBEnd = false;
 
-    // дк всё это заменить на модбас слейв
+        // дописать влияние модбаса на систему
+        if (eeprom.uartset.val != mbSlave.RegIn[uartsetset]) {
+            eeprom.uartset.val = mbSlave.RegIn[uartsetset];
+        }
+        
+    #define EEPROM_NEW_NOT_0(InRegN, EepromMember) \
+        if (mbSlave.RegIn[InRegN] != 0) { \
+            EepromMember = mbSlave.RegIn[InRegN]; \
+            mbSlave.RegIn[InRegN] = 0; \
+        }
+        EEPROM_NEW_NOT_0(mbadrset, eeprom.mbadr);
+        EEPROM_NEW_NOT_0(Tmaxset, eeprom.Tmax);
+        EEPROM_NEW_NOT_0(UFminset, eeprom.UFmin);
+        EEPROM_NEW_NOT_0(LampsQtyset, eeprom.LampsQty);
+        EEPROM_NEW_NOT_0(UFmaxset, eeprom.UFmax);
 
-    // надо среагировать на включение/выключение УФ УЗ
+        if (mbSlave.RegCtrl[US] == NOT_0_AND_NOT_0xFF00) {
+        } else if (mbSlave.RegCtrl[US] == 0) {
+            US_OFF;
+            DeviceState.flags.uzg_on = 0;
+            mbSlave.RegCtrl[US] = NOT_0_AND_NOT_0xFF00;
+        } else if (mbSlave.RegCtrl[US] == 0xFF00) {
+            US_ON;
+            DeviceState.flags.uzg_on = 1;
+            mbSlave.RegCtrl[US] = NOT_0_AND_NOT_0xFF00;
+        }
+        if (mbSlave.RegCtrl[UV] == NOT_0_AND_NOT_0xFF00) {
+        } else if (mbSlave.RegCtrl[UV] == 0) {
+            UV_OFF;
+            DeviceState.flags.uf_on = 0;
+            mbSlave.RegCtrl[UV] = NOT_0_AND_NOT_0xFF00;
+        } else if (mbSlave.RegCtrl[UV] == 0xFF00) {
+            UV_ON;
+            DeviceState.flags.uf_on = 1;
+            mbSlave.RegCtrl[UV] = NOT_0_AND_NOT_0xFF00;
+        }
 
+    }
 }
 
 
 
 void WorkCheckAndLeds (void)
 {
-    if (DeviceState.flags.uf_on) {
-        lamps = 0;
-        for(uint8_t i = 0; i <= EXP_BOARD; i++) {
-            // получаем список ламп подключенных в цикле по или суммируем от плат расширения и затем проверяем
-            lamps|=get_lamps(i);
+    lamps = 0;
+    for(uint8_t i = 0; i <= EXP_BOARD; i++) {
+        // получаем список ламп подключенных в цикле по или суммируем от плат расширения и затем проверяем
+        lamps|=get_lamps(i);
+        if (i == 0) {
+            uint16_t tmp;
+            tmp = ~lamps & 0b1111111111;
+            mbSlave.RegOut[FlagLamps1] &= ~(0b1111111111);
+            mbSlave.RegOut[FlagLamps1] |= tmp;
         }
+    }
+    if (DeviceState.flags.uf_on) {
         if (lamps!=0) { //если лампы не горят
             if (!(DeviceState.flags.alarm_lamp)) { //если тревога не установлена -устанавливаем
                 ALARM_LED_SET; //сравнивать с 0x3ff - если хоть одна лампа не горит- зажигаем тревогу
@@ -698,7 +683,7 @@ void WorkCheckAndLeds (void)
             if (uf_level>100) {
                 uf_level=100;	//Запрещаем значения УФ>100%
             }	
-            if  (uf_level<uf_threshold) { //если уровень УФ меньше порогового уровня 
+            if  (uf_level<eeprom.UFmin) { //если уровень УФ меньше порогового уровня 
                 if (!(DeviceState.flags.alarm_uf)) { //если тревога не установлена -устанавливаем
                     //если низкий уровень УФ- зажигаем тревогу
                     DeviceState.flags.alarm_uf=1;
@@ -706,7 +691,7 @@ void WorkCheckAndLeds (void)
                     ALARM_LED_SET;
                 }
             } else { // если уровень УФ выше порогового на 5 процентов
-                if (DeviceState.flags.alarm_uf && (uf_level > (uf_threshold+5)) ) { //если установлен флаг Тревога Ур.УФ-гасим его
+                if (DeviceState.flags.alarm_uf && (uf_level > (eeprom.UFmin+5)) ) { //если установлен флаг Тревога Ур.УФ-гасим его
                     DeviceState.flags.alarm_uf=0;		//  
                     DeviceState.flags.disp_upd=1;		//  
                 }
@@ -781,13 +766,25 @@ void MBslaveInit (void)
     
     // тут потом выбор с еепрома или заводские будет
     mbSlaveAdr = eeprom.mbadr;
-    uartset_t* set = (uartset_t*) &(eeprom.uartset);
-    USART1_Init(*set);
+
+    USART1_Init(eeprom.uartset);
+
+    uint8_t msWait = (eeprom.uartset.bits.boud == bd9600)  ? 35000/9600  + 1 :
+                     (eeprom.uartset.bits.boud == bd14400) ? 35000/14400 + 1 :
+                     (eeprom.uartset.bits.boud == bd19200) ? 35000/19200 + 1 :
+                                                             2; 
+    // 3.5 слова или 2 мс ожидания после идле (которое 1 фрейм)
+    TimerSetTime (EndMesMBS, msWait);
 
     mbSlave.RegOut[Dev] = DEVUNIQNUMBER;
     mbSlave.RegOut[DevN] = eeprom.DevN;
-    mbSlave.RegOut[uartset] = eeprom.uartset;
+    mbSlave.RegOut[uartset] = (eeprom.uartset.val);
     mbSlave.RegOut[mbadr] = mbSlaveAdr;
+    mbSlave.RegOut[Tmax] = eeprom.Tmax;
+    mbSlave.RegOut[UFmin] = eeprom.UFmin;
+    mbSlave.RegOut[LampsQtyMB] = TOTAL_LAMPS;
+    mbSlave.RegOut[UFmax] = eeprom.UFmax;
+
     // mbadrset может быть установлен в 0, потому для регистрации запоминаем
     mbSlave.RegIn[mbadrset] = mbSlave.RegOut[mbadr];
     mbSlave.RegInMinVal[mbadrset] = 1;
@@ -800,6 +797,14 @@ void MBslaveInit (void)
     mbSlave.RegInMaxVal[UFminset] = 100;
     mbSlave.RegInMaxVal[LampsQtyset] = 112;
     mbSlave.RegInMaxVal[UFmaxset] = 0x0FFF;
-    
 
+    // буду сравнивать с 0x0000 0xFF00 для определения запроса
+    for (uint8_t i = 0; i < QTY_CTRL_REG; i++) {
+        mbSlave.RegCtrl[i] = NOT_0_AND_NOT_0xFF00;
+    }
+
+
+    USART1_RX_DMA_Init((uint32_t)mbSlaveUART.Buf, UART_BUF_SIZE); 
+    USART1_TX_DMA_Init((uint32_t)mbSlaveUART.Buf);
+    StartSlaveDMA_USART_RX();
 }

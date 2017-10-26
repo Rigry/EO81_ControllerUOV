@@ -8,10 +8,12 @@
 #include "MBSlave.h"
 //#include "stm32f10x.h"		//нужен только для отладки
 
-//из спецификации на модбас чтение регистров мастером
+// из спецификации на модбас чтение регистров мастером
 #define MBFUNC03	(Buf->Buf[1] == 3)
-//из спецификации на модбас установка регистров мастером	
+// из спецификации на модбас установка регистров мастером	
 #define MBFUNC16	(Buf->Buf[1] == 16)		
+// из спецификации на модбас установка флага	
+#define MBFUNC05	(Buf->Buf[1] == 5)	
 #define OURADDR		(Buf->Buf[0] == Addr)
 //широковещательный запрос
 #define ALLADDR		(Buf->Buf[0] == 0)		
@@ -24,7 +26,8 @@ void MBSlave(struct UartBufSt *Buf,
 			 uint8_t Addr)
 {
 	uint16_t LowAddr = 0, RegQty = 0, HighAddr = 0;
-	uint16_t RegVal[QTY_OUT_REG];
+    volatile uint16_t RegVal[QTY_IN_REG];
+    volatile uint16_t CtrlVal;
 	uint16_t CRCF;
 	uint8_t CRC1st;
 	uint8_t CRC2nd;
@@ -39,12 +42,14 @@ void MBSlave(struct UartBufSt *Buf,
 		MinMesCheck,
 		AddrCheck,
 		FuncCheck,
-		RegCheck,
+        RegCheck,
+        Reg05Check,
 		ValueCheck,
 		CRCCheck,
 		AnswerErr,
 		AnswerMB03,
-		AnswerMB16,
+        AnswerMB16,
+        AnswerMB05,
 		AnswerCRC,
 		FuncDone,
 	} Step = StartCheck;	
@@ -82,13 +87,15 @@ void MBSlave(struct UartBufSt *Buf,
 		case FuncCheck:
 			if (MBFUNC03 || MBFUNC16) {
 				Step=RegCheck;
-			} else {
+            } else if (MBFUNC05) {
+                Step=Reg05Check;
+            } else {
 				Err = FuncErr;
 				Step = CRCCheck;
 			}
 			break;	
-		case RegCheck:
-			//все числа по спецификации Modbus
+        case RegCheck:
+            //все числа по спецификации Modbus
 			LowAddr = (uint16_t)Buf->Buf[2] * 256 + Buf->Buf[3];
 			RegQty = (uint16_t)Buf->Buf[4] * 256 + Buf->Buf[5];
 			HighAddr = LowAddr + RegQty - 1;		
@@ -118,23 +125,39 @@ void MBSlave(struct UartBufSt *Buf,
 					Step = CRCCheck;					
 				}
 			}
-			break;	
+            break;
+        case Reg05Check:
+            LowAddr = (uint16_t)Buf->Buf[2] << 8 | Buf->Buf[3];
+            if (LowAddr >= QTY_CTRL_REG) {
+                Err = RegErr;
+                Step = CRCCheck;
+                break;  
+            //КОСТЫЛЬ: отчего то на 1 байт больше принимал
+            //длина пакета не соответсвует спецификации ModBus            
+            } else if ( !((Buf->N == 8) || (Buf->N == 9)) ) {	
+                Buf->MBEnd = false;
+                Buf->N = 0;
+                Step = FuncDone;
+            } else {
+                Step = ValueCheck;
+            }
+            break;
 		case ValueCheck:
 			if (MBFUNC16) {
 				bool AllGood = true;
 				for (i = 0; i < RegQty; i++) {
-					RegVal[i] = 
-						(uint16_t)Buf->Buf[i*2+7] * 256 + Buf->Buf[i*2+8];
+					RegVal[i] = (uint16_t)Buf->Buf[i*2+7] << 8 | Buf->Buf[i*2+8];
 					AllGood = AllGood 
 							&& RegVal[i] >= Reg->RegInMinVal[i+LowAddr]
 							&& (RegVal[i] <= Reg->RegInMaxVal[i+LowAddr]
 								|| Reg->RegInMaxVal[i+LowAddr] == 0);
 				}
 				Err = AllGood ? Err : ValueErr;
-				Step = CRCCheck;
-			} else {
-				Step=CRCCheck;
-			}
+			} else if (MBFUNC05) {
+                CtrlVal = (uint16_t)Buf->Buf[4] << 8 | Buf->Buf[5];
+                Err = (CtrlVal == 0) || (CtrlVal == 0xFF00) ? Err : ValueErr;
+            }
+            Step=CRCCheck;
 			break;	
 		case CRCCheck:
 			CRCF = crc16(&Buf->Buf[0], Buf->N - 2);
@@ -151,7 +174,9 @@ void MBSlave(struct UartBufSt *Buf,
 				} else if (MBFUNC03) {
 					Step = AnswerMB03;
 				} else if (MBFUNC16) {
-					Step = AnswerMB16;
+                    Step = AnswerMB16;
+                } else if (MBFUNC05) {
+                    Step = AnswerMB05;
 				} else {
 					Step=FuncDone; 
 				}
@@ -198,7 +223,14 @@ void MBSlave(struct UartBufSt *Buf,
 				Buf->NeedSend = 6;	
 				Step = AnswerCRC;
 			}
-			break;	
+            break;
+        case AnswerMB05:
+            Reg->RegCtrl[LowAddr] = CtrlVal;
+            Buf->NeedSend = 8;  // ответ что и запрос
+            Buf->MBEnd = false;
+			Buf->N = 0;
+			Step = FuncDone;
+            break;
 		case AnswerCRC:
 			CRCF = crc16(&Buf->Buf[0], Buf->NeedSend);
 			Buf->Buf[Buf->NeedSend] = CRCF % 256;

@@ -158,36 +158,37 @@ void USART1_Init (uartset_t set)
     GPIOA->CRH   &= ~(GPIO_CRH_MODE10 | GPIO_CRH_CNF10);   //??????????? MODE ? CNF
     GPIOA->CRH   |=   GPIO_CRH_CNF10_0;                   //????, ?????? ?????????
     // настраиваем скорость,число стоповых и бит данных
-    if (set.parityEn) {
+    if (set.bits.parityEn) {
         USART1->CR1 |= USART_CR1_PCE;
-        if (set.parityEven) {
+        if (set.bits.parityEven) {
             USART1->CR1 &= ~USART_CR1_PS;
         } else {
             USART1->CR1 |= USART_CR1_PS;
         }
     }
     USART1->CR2 &= ~USART_CR2_STOP;
-    if (set.stopBitsMinus1) {
+    if (set.bits.stopBitsMinus1) {
         USART1->CR2 |= USART_CR2_STOP_1;
     }
 	
-    uint8_t tmp16;
-    tmp16 = (set.boud == bd9600)   ? F_CPU/9600  :
-            (set.boud == bd14400)  ? F_CPU/14400 :
-            (set.boud == bd19200)  ? F_CPU/19200 :
-            (set.boud == bd28800)  ? F_CPU/28800 :
-            (set.boud == bd38400)  ? F_CPU/38400 :
-            (set.boud == bd57600)  ? F_CPU/57600 :
-            (set.boud == bd76800)  ? F_CPU/76800 : 
-                                     F_CPU/115200; 
+    uint16_t tmp16;
+    tmp16 = (set.bits.boud == bd9600)   ? F_CPU/9600  :
+            (set.bits.boud == bd14400)  ? F_CPU/14400 :
+            (set.bits.boud == bd19200)  ? F_CPU/19200 :
+            (set.bits.boud == bd28800)  ? F_CPU/28800 :
+            (set.bits.boud == bd38400)  ? F_CPU/38400 :
+            (set.bits.boud == bd57600)  ? F_CPU/57600 :
+            (set.bits.boud == bd76800)  ? F_CPU/76800 :
+                                          F_CPU/115200;
 
-    USART1->BRR   =   tmp16;                             //скорость 9600 72000000/9600
+    USART1->BRR   =   tmp16;
     USART1->CR1  &=  ~USART_CR1_M;                       //8 бит данных
                             
     USART1->CR1  |=   USART_CR1_UE;                      //включить USART1
     USART1->CR1  |=   USART_CR1_TE;                      //включить передатчик
     USART1->CR1  |=   USART_CR1_RE;                      //включить приемник
-    USART1->CR1  |=   USART_CR1_IDLEIE|USART_CR1_TCIE;    //включить прерывание по LINE IDLE  и окончанию передачи через усарт |USART_CR1_RXNEIE-было по кой то хуй
+
+    USART1->CR1  |=   USART_CR1_IDLEIE;    //включить прерывание по LINE IDLE
     NVIC_SetPriority (USART1_IRQn, 4);
     NVIC_EnableIRQ(USART1_IRQn);                         //Включаем прерывания в контроллере прерываний
 
@@ -234,14 +235,20 @@ void USART1_RX_DMA_Init(uint32_t memAdr, uint32_t bufSize)
     DMA1_Channel5->CMAR  =  (uint32_t) memAdr;
     DMA1_Channel5->CNDTR =  bufSize;
     
-    // ДК: какието нстройки (не трогаю)
+    // ДК: какието нстройки 
     DMA1_Channel5->CCR   =  0;
-    DMA1_Channel5->CCR  &= ~DMA_CCR5_CIRC;
+    // дк от переферии в память
     DMA1_Channel5->CCR  &= ~DMA_CCR5_DIR;
+    // дк размер переферии 8 бит
     DMA1_Channel5->CCR  &= ~DMA_CCR5_PSIZE;
+    // дк адрес в переферии не инкрементируеться
     DMA1_Channel5->CCR  &= ~DMA_CCR5_PINC;
+    // дк размер памяти 8 бит
     DMA1_Channel5->CCR  &= ~DMA_CCR5_MSIZE;
-    DMA1_Channel5->CCR  |=  DMA_CCR5_MINC;
+    // дк адрес в памяти инкриментируеться
+    DMA1_Channel5->CCR  |= DMA_CCR5_MINC;
+    // дк разрешение режима циркулции (защита от переполнения)
+    DMA1_Channel5->CCR  |= DMA_CCR5_CIRC;
 }
 
 void spi_init(void)
@@ -296,12 +303,21 @@ void spi_init(void)
 // ПЕРЕДАЧА ДАННЫХ С КОНТРОЛЛЕРА В СЕТЬ
 void StartSlaveDMA_USART_TX (unsigned int LengthBufer)
 {
-    CMD_MODE_TX();//включить на передачу интерфейс с компьютером
+    // включить на передачу интерфейс с компьютером
+    // RTS on
+    CMD_MODE_TX();
     __NOP();__NOP();
   DMA1_Channel4->CCR  &= ~DMA_CCR4_EN;          //????????? ?????? ??????
   DMA1_Channel4->CNDTR =  LengthBufer;          //????????? ?????????? ?????? ??? ??????
   DMA1->IFCR          |= DMA_IFCR_CTCIF4;       //???????? ???? ????????? ??????
   DMA1_Channel4->CCR  |=  DMA_CCR4_EN;          //????????? ?????? ??????
+}
+void StopSlaveDMA_USART_TX (void)
+{
+    DMA1_Channel4->CCR  &= ~DMA_CCR4_EN;
+    // RTS off
+    CMD_MODE_RX();
+    __NOP();__NOP();
 }
 // ПРИЕМ ДАННЫХ В КОНТРОЛЛЕР ИЗ СЕТИ
 void StartSlaveDMA_USART_RX (void)
@@ -311,6 +327,12 @@ void StartSlaveDMA_USART_RX (void)
   DMA1->IFCR          |= DMA_IFCR_CTCIF5;       //???????? ???? ????????? ??????
   DMA1_Channel5->CCR  |=  DMA_CCR5_EN;          //????????? ?????? ??????
 }
+void StopSlaveDMA_USART_RX (void)
+{
+    DMA1_Channel5->CCR  &= ~DMA_CCR5_EN;
+}
+
+
 
 
 /////////////////////////////////////////////////////////////////////////////////

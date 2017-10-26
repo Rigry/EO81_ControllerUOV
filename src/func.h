@@ -63,6 +63,14 @@ void MBSlaveAction (void);
 void WorkCheckAndLeds (void);
 // подпрограмма работы с меню
 void Menu (void);
+void StopSlaveDMA_USART_RX (void);
+void StopSlaveDMA_USART_TX (void);
+
+// Определяет сколько пришло байтов по УАРТ
+inline uint8_t UARTGetQtyReceiveBytes (void)
+{
+	return ( UART_BUF_SIZE - DMA1_Channel5->CNDTR );
+}
 
 
 

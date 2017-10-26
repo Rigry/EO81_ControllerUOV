@@ -1,7 +1,3 @@
-/**
- * обязательно в кодировке windows 1251
- */
-
 //*** <<< Use Configuration Wizard in Context Menu >>> ***
 // <h> UOV Configuration Wizard
 //<s.20> Название установки (20 символов)

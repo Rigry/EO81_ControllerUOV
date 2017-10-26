@@ -10,7 +10,8 @@
         "display.h": "c",
         "func.h": "c",
         "crc.h": "c",
-        "keyboard.h": "c"
+        "keyboard.h": "c",
+        "communic.h": "c"
     },
     "clang.cflags": [
         "-Isrc",

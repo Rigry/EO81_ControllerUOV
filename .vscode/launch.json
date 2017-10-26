@@ -12,13 +12,10 @@
 		 //	"miDebuggerPath": "/home/dvk/code/gcc-arm-none-eabi-6-2017-q1-update/bin/arm-none-eabi-gdb",
 		 // ap note
 		    "miDebuggerPath": "/home/ap/Code/gcc-arm-none-eabi-6-2017-q2-update/bin/arm-none-eabi-gdb",
-			"args": [
-				"-tui"
-			],
 			"program": "${workspaceRoot}/build/EO81_ControllerUOV.elf",
 			"miDebuggerServerAddress": "localhost:4242",
 			"MIMode": "gdb",
-			"cwd": "${workspaceRoot}"
+            "cwd": "${workspaceRoot}"
 		}
 	]
 

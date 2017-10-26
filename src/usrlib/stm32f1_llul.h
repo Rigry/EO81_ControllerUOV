@@ -15,9 +15,9 @@
 void makeDebugVar (void);
 
 
-/******************************************************
-    RCC
-******************************************************/
+//////////////////////////////////////////////////////////////////////////////
+//    RCC
+//////////////////////////////////////////////////////////////////////////////
 typedef struct {
     // Bit 0 HSION: HSI clock enable
     __IO uint32_t HSION  :1;
@@ -224,10 +224,303 @@ inline bool FLASHProgrammingError (void)
     } else {
         return false;
     }
-
 }
 
+//////////////////////////////////////////////////////////////////////////////
+//    USART
+//////////////////////////////////////////////////////////////////////////////
+typedef struct {
+    // Bit 0 PE: Parity error
+    volatile bool PE        :1;
+    // Bit 1 FE: Framing error
+    volatile bool FE        :1;
+    // Bit 2 NE: Noise error flag
+    volatile bool NE        :1;
+    // Bit 3 ORE: Overrun error
+    volatile bool ORE       :1;
+    // Bit 4 IDLE: IDLE line detected
+    volatile bool IDLE      :1;
+    // Bit 5 RXNE: Read data register not empty
+    volatile bool RXNE      :1;
+    // Bit 6 TC: Transmission complete
+    volatile bool TC        :1;
+    // Bit 7 TXE: Transmit data register empty
+    volatile bool TXE       :1;
+    // Bit 8 LBD: LIN break detection flag
+    volatile bool LBD       :1;
+    // Bit 9 CTS: CTS flag
+    volatile bool CTS       :1;
+    // Bits 31:10 Reserved, forced by hardware to 0.
+    volatile uint32_t dcb1  :22;
+} USART_SR_t;
 
+typedef enum {
+    even = 0,
+    odd
+} PS_t;
+typedef enum {
+    bit8 = 0,
+    bit9
+} M_t;
+typedef struct {
+    // Bit 0 SBK: Send break
+    volatile bool SBK       :1;
+    // Bit 1 RWU: Receiver wakeup
+    volatile bool RWU       :1;
+    // Bit 2 RE: Receiver enable
+    volatile bool RE        :1;
+    // Bit 3 TE: Transmitter enable
+    volatile bool TE        :1;
+    // Bit 4 IDLEIE: IDLE interrupt enable
+    volatile bool IDLEIE    :1;
+    // Bit 5 RXNEIE: RXNE interrupt enable
+    volatile bool RXNEIE    :1;
+    // Bit 6 TCIE: Transmission complete interrupt enable
+    volatile bool TCIE      :1;
+    // Bit 7 TXEIE: TXE interrupt enable
+    volatile bool TXEIE     :1;
+    // Bit 8 PEIE: PE interrupt enable
+    volatile bool PEIE      :1;
+    // Bit 9 PS: Parity selection
+    volatile PS_t PS        :1;
+    // Bit 10 PCE: Parity control enable
+    volatile bool PCE       :1;
+    // Bit 11 WAKE: Wakeup method
+    volatile uint32_t WAKE  :1;
+    // Bit 12 M: Word length
+    volatile M_t M          :1;
+    // Bit 13 UE: USART enable
+    volatile bool UE        :1;
+    // Bits 31:14 Reserved, forced by hardware to 0.
+    volatile uint32_t dcb1  :18;
+} USART_CR1_t;
+
+typedef enum {
+    sb1     = 0,
+    sbHalf, sb2, sb1andHalf 
+} STOP_t;
+typedef struct {
+    // Bits 3:0 ADD[3:0]: Address of the USART node
+    volatile uint32_t ADD   :4;
+    // Bit 4 Reserved, forced by hardware to 0.
+    volatile uint32_t dcb1  :1;
+    // Bit 5 LBDL: lin break detection length
+    volatile uint32_t LBDL  :1;
+    // Bit 6 LBDIE: LIN break detection interrupt enable
+    volatile bool LBDIE     :1;
+    // Bit 7 Reserved, forced by hardware to 0.
+    volatile uint32_t dcb2  :1;
+    // Bit 8 LBCL: Last bit clock pulse
+    volatile uint32_t LBCL  :1;
+    // Bit 9 CPHA: Clock phase
+    volatile uint32_t CPHA  :1;
+    // Bit 10 CPOL: Clock polarity
+    volatile uint32_t CPOL  :1;
+    // Bit 11 CLKEN: Clock enable
+    volatile bool CLKEN     :1;
+    // Bits 13:12 STOP: STOP bits
+    volatile STOP_t STOP    :2;
+    // Bit 14 LINEN: LIN mode enable
+    volatile bool LINEN     :1;
+    // Bits 31:15 Reserved, forced by hardware to 0.
+    volatile uint32_t dcb3  :17;
+} USART_CR2_t;
+
+typedef struct {
+    // Bit 0 EIE: Error interrupt enable
+    volatile bool EIE       :1;
+    // Bit 1 IREN: IrDA mode enable
+    volatile bool IREN      :1;
+    // Bit 2 IRLP: IrDA low-power
+    volatile uint32_t IRLP  :1;
+    // Bit 3 HDSEL: Half-duplex selection
+    volatile bool HDSEL     :1;
+    // Bit 4 NACK: Smartcard NACK enable
+    volatile bool NACK      :1;
+    // Bit 5 SCEN: Smartcard mode enable
+    volatile bool SCEN      :1;
+    // Bit 6 DMAR: DMA enable receiver
+    volatile bool DMAR      :1;
+    // Bit 7 DMAT: DMA enable transmitter
+    volatile bool DMAT      :1;
+    // Bit 8 RTSE: RTS enable
+    volatile bool RTSE      :1;
+    // Bit 9 CTSE: CTS enable
+    volatile bool CTSE      :1;
+    // Bit 10 CTSIE: CTS interrupt enable
+    volatile bool CTSIE     :1;
+    // Bits 31:11 Reserved, forced by hardware to 0.
+    volatile uint32_t dcb1  :21;
+} USART_CR3_t;
+
+typedef struct {
+    // Bits 7:0 PSC[7:0]: Prescaler value
+    volatile uint32_t PSC       :8;
+    // Bits 15:8 GT[7:0]: Guard time value
+    volatile uint32_t GT        :8;
+    volatile uint32_t dcb1      :16;
+
+} USART_GTPR_t;
+
+
+//////////////////////////////////////////////////////////////////////////////
+//    DMA
+//////////////////////////////////////////////////////////////////////////////
+typedef struct {
+    uint32_t GIF1	:1; //Channel x global interrupt flag
+    uint32_t TCIF1	:1; //Channel x transfer complete flag
+    uint32_t HTIF1	:1;	//Channel x half transfer flag
+    uint32_t TEIF1	:1;	//Channel x transfer error flag
+    uint32_t GIF2	:1; //Channel x global interrupt flag
+    uint32_t TCIF2	:1; //Channel x transfer complete flag
+    uint32_t HTIF2	:1;	//Channel x half transfer flag
+    uint32_t TEIF2	:1;	//Channel x transfer error flag
+    uint32_t GIF3	:1; //Channel x global interrupt flag
+    uint32_t TCIF3	:1; //Channel x transfer complete flag
+    uint32_t HTIF3	:1;	//Channel x half transfer flag
+    uint32_t TEIF3	:1;	//Channel x transfer error flag
+    uint32_t GIF4	:1; //Channel x global interrupt flag
+    uint32_t TCIF4	:1; //Channel x transfer complete flag
+    uint32_t HTIF4	:1;	//Channel x half transfer flag
+    uint32_t TEIF4	:1;	//Channel x transfer error flag
+    uint32_t GIF5	:1; //Channel x global interrupt flag
+    uint32_t TCIF5	:1; //Channel x transfer complete flag
+    uint32_t HTIF5	:1;	//Channel x half transfer flag
+    uint32_t TEIF5	:1;	//Channel x transfer error flag
+    uint32_t GIF6	:1; //Channel x global interrupt flag
+    uint32_t TCIF6	:1; //Channel x transfer complete flag
+    uint32_t HTIF6	:1;	//Channel x half transfer flag
+    uint32_t TEIF6	:1;	//Channel x transfer error flag
+    uint32_t GIF7	:1; //Channel x global interrupt flag
+    uint32_t TCIF7	:1; //Channel x transfer complete flag
+    uint32_t HTIF7	:1;	//Channel x half transfer flag
+    uint32_t TEIF7	:1;	//Channel x transfer error flag
+    uint32_t dcb	:4;
+} DMA_ISR_t;
+
+typedef struct {
+    uint32_t CGIF1	:1;	//Channel x global interrupt clear
+    uint32_t CTCIF1	:1;	//Channel x transfer complete clear
+    uint32_t CHTIF1	:1;	//Channel x half transfer clear
+    uint32_t CTEIF1	:1;	//Channel x transfer error clear
+    uint32_t CGIF2	:1;	//Channel x global interrupt clear
+    uint32_t CTCIF2	:1;	//Channel x transfer complete clear
+    uint32_t CHTIF2	:1;	//Channel x half transfer clear
+    uint32_t CTEIF2	:1;	//Channel x transfer error clear
+    uint32_t CGIF3	:1;	//Channel x global interrupt clear
+    uint32_t CTCIF3	:1;	//Channel x transfer complete clear
+    uint32_t CHTIF3	:1;	//Channel x half transfer clear
+    uint32_t CTEIF3	:1;	//Channel x transfer error clear
+    uint32_t CGIF4	:1;	//Channel x global interrupt clear
+    uint32_t CTCIF4	:1;	//Channel x transfer complete clear
+    uint32_t CHTIF4	:1;	//Channel x half transfer clear
+    uint32_t CTEIF4	:1;	//Channel x transfer error clear
+    uint32_t CGIF5	:1;	//Channel x global interrupt clear
+    uint32_t CTCIF5	:1;	//Channel x transfer complete clear
+    uint32_t CHTIF5	:1;	//Channel x half transfer clear
+    uint32_t CTEIF5	:1;	//Channel x transfer error clear
+    uint32_t CGIF6	:1;	//Channel x global interrupt clear
+    uint32_t CTCIF6	:1;	//Channel x transfer complete clear
+    uint32_t CHTIF6	:1;	//Channel x half transfer clear
+    uint32_t CTEIF6	:1;	//Channel x transfer error clear
+    uint32_t CGIF7	:1;	//Channel x global interrupt clear
+    uint32_t CTCIF7	:1;	//Channel x transfer complete clear
+    uint32_t CHTIF7	:1;	//Channel x half transfer clear
+    uint32_t CTEIF7	:1;	//Channel x transfer error clear
+    uint32_t dcb	:4;	//Bits 31:28 Reserved, must be kept at reset value.
+} DMA_IFCR_t;
+inline void DMAChannel2ClearTransferCompleteInterruptFlag (void)
+{
+    SET_MASK (DMA1->IFCR, DMA_IFCR_CTCIF2);
+}
+inline void DMAChannel3ClearTransferCompleteInterruptFlag (void)
+{
+    SET_MASK (DMA1->IFCR, DMA_IFCR_CTCIF3);
+}
+typedef enum {
+    DirFromMemory		= 0b1,
+    DirFromPeripheral	= 0b0
+} eDMA_Direction;
+typedef enum {
+    Size8Bits	= 0b00,
+    Size16Bits 	= 0b01,
+    Size32Bits 	= 0b10
+} eDMA_Size;
+typedef struct {
+    uint32_t EN		:1; //Bit 0 EN: Channel enable
+    uint32_t TCIE	:1;	//Bit 1 TCIE: Transfer complete interrupt enable
+    uint32_t HTIE	:1;	//Bit 2 HTIE: Half transfer interrupt enable
+    uint32_t TEIE	:1;	//Bit 3 TEIE: Transfer error interrupt enable
+    eDMA_Direction DIR	:1;	//Bit 4 DIR: Data transfer direction
+    uint32_t CIRC	:1;	//Bit 5 CIRC: Circular mode
+    bool PINC       :1;	//Bit 6 PINC: Peripheral increment mode
+    bool MINC       :1;	//Bit 7 MINC: Memory increment mode
+    eDMA_Size PSIZE	:2;	//Bits 9:8 PSIZE[1:0]: Peripheral size
+    eDMA_Size MSIZE	:2;	//Bits 11:10 MSIZE[1:0]: Memory size
+    uint32_t PL		:2;	//Bits 13:12 PL[1:0]: Channel priority level
+    uint32_t MEM2MEM	:1;	//Bit 14 MEM2MEM: Memory to memory mode
+    uint32_t dcb	:17;	//Bits 31:15 Reserved, must be kept at reset value.
+} DMA_CCRx_t;
+#define BIT_DMA_CCR_PSIZE	8
+#define BIT_DMA_CCR_MSIZE	10
+#define BIT_DMA_CCR_DIR		4
+
+inline void DMASetPeripheralSize (DMA_Channel_TypeDef* DMA_Channel, eDMA_Size size)
+{
+    CLEAR_MASK  (DMA_Channel->CCR, (uint32_t)0b11 << BIT_DMA_CCR_PSIZE);
+    SET_MASK	(DMA_Channel->CCR, (uint32_t)size << BIT_DMA_CCR_PSIZE);
+}
+inline void DMASetMemorySize (DMA_Channel_TypeDef* DMA_Channel, eDMA_Size size)
+{
+    CLEAR_MASK  (DMA_Channel->CCR, (uint32_t)0b11 << BIT_DMA_CCR_MSIZE);
+    SET_MASK	(DMA_Channel->CCR, (uint32_t)size << BIT_DMA_CCR_MSIZE);
+}
+
+inline void DMASetDirection (DMA_Channel_TypeDef* DMA_Channel, eDMA_Direction dir)
+{
+    if (dir == DirFromMemory) {
+        SET_MASK  (DMA_Channel->CCR, DMA_CCR1_DIR);
+    } else {
+        CLEAR_MASK  	(DMA_Channel->CCR, DMA_CCR1_DIR);
+    }
+}
+inline void DMASetIncrementMemoryAddress (DMA_Channel_TypeDef* DMA_Channel)
+{
+    SET_MASK (DMA_Channel->CCR, DMA_CCR1_MINC);  
+}
+inline void DMASetCircularMode (DMA_Channel_TypeDef* DMA_Channel)
+{
+    SET_MASK (DMA_Channel->CCR, DMA_CCR1_CIRC); 
+}
+inline void DMAEnableInterruptTransferComplete (DMA_Channel_TypeDef* DMA_Channel)
+{
+    SET_MASK (DMA_Channel->CCR, DMA_CCR1_TCIE);
+}
+
+inline void DMASetPeripherAdress (DMA_Channel_TypeDef* DMA_Channel, uint32_t address)
+{
+    DMA_Channel->CPAR = address;
+}
+inline void DMASetMemoryAdress (DMA_Channel_TypeDef* DMA_Channel, uint32_t address)
+{
+    DMA_Channel->CMAR = address;
+}
+inline void DMASetQtyTransfer (DMA_Channel_TypeDef* DMA_Channel, uint16_t qty)
+{
+    DMA_Channel->CNDTR = qty;
+}
+inline uint16_t DMAGetQtyTransferLeft (DMA_Channel_TypeDef* DMA_Channel)
+{
+    return (DMA_Channel->CNDTR);
+}
+inline void DMAEnable (DMA_Channel_TypeDef* DMA_Channel)
+{
+    SET_MASK (DMA_Channel->CCR, DMA_CCR1_EN);
+}
+inline void DMADisable (DMA_Channel_TypeDef* DMA_Channel)
+{
+    CLEAR_MASK (DMA_Channel->CCR, DMA_CCR1_EN);
+}
 
 
 #endif // STM32F1_LLUL_H

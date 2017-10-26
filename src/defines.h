@@ -6,11 +6,13 @@
 
 #define MB_TIMEOUT 200
 #define F_CPU   72000000UL
-#define DEVUNIQNUMBER	4		// для этой прошивки и этого устройства,
-                                // согласно таблице кодов устройств ЭО-76
+// для этой прошивки и этого устройства, согласно таблице кодов устройств ЭО-76
+#define DEVUNIQNUMBER	4		
 
-
-#define UART_BUF_SIZE 255
+// временно 30 для отладки
+#define UART_BUF_SIZE 30
+// число не ноль и не 0xFF00
+#define NOT_0_AND_NOT_0xFF00 0xFFFF
 
 
 #define	SetBit(reg, bit)		reg |= (1<<bit)
@@ -68,19 +70,16 @@ enum MBOutRegE {
                         // далее остальные лампы до 112
     QTY_OUT_REG = 131
 };
+#define US_ON_WORKFLAGS_POS     0
+#define US_ON_WORKFLAGS_MASK    ((uint16_t)1 << US_ON_WORKFLAGS_POS)
+#define UV_ON_WORKFLAGS_POS     1
+#define UV_ON_WORKFLAGS_MASK    ((uint16_t)1 << UV_ON_WORKFLAGS_POS)
+
 // MBCtrlRegE управление извне функцией 05
 enum MBCtrlRegE {
     US  = 0,
-    UF  = 1,
+    UV  = 1,
     QTY_CTRL_REG
-};
-
-// структура данных, хранящейся в еепром
-struct EEPROMst{
-	uint16_t 	DevN;	    // зав номер устройства
-	uint16_t 	uartset;
-	uint16_t 	mbadr;
-	uint16_t	UFmax;      // Максимальное значение с датчика за всё время работы 
 };
 
 // битовое поле uartset
@@ -94,12 +93,29 @@ typedef enum {
     bd76800  = 0b110,
     bd115200 = 0b111
 } bode_t;
-typedef struct {
-    bool    parityEn        : 1;
-    bool    parityEven      : 1;
-    uint8_t stopBitsMinus1  : 1;
-    bode_t  boud            : 3;
+typedef union {
+    struct Bits {
+        bool    parityEn        : 1;
+        bool    parityEven      : 1;
+        uint16_t stopBitsMinus1 : 1;
+        bode_t  boud            : 3;
+        uint16_t dcb            :10;
+    } bits;
+    uint16_t val;
 } uartset_t;
+
+// структура данных, хранящейся в еепром
+struct EEPROMst{
+	uint16_t 	DevN;	    // зав номер устройства
+	uartset_t 	uartset;
+    uint16_t 	mbadr;
+    uint16_t    Tmax;
+    uint16_t    UFmin;
+    uint16_t    LampsQty;
+	uint16_t	UFmax;      // Максимальное значение с датчика за всё время работы 
+};
+
+
 
 // таймеры
 typedef enum {
@@ -107,6 +123,7 @@ typedef enum {
     MBDelay 	= 1,
     EndMesMBM	= 2,
     MenuLedUpd,
+    EndMesMBS,
     test,
     QtyTimers	
 } eTimer_t;
@@ -122,11 +139,7 @@ typedef enum {
 #define  US_LED_SET		GPIOB->BSRR = GPIO_Pin_12
 #define  US_LED_RESET	GPIOB->BRR = GPIO_Pin_12
 
-#define  US_ON	    	GPIOB->BSRR = GPIO_Pin_11
-#define	 US_OFF 		GPIOB->BRR = GPIO_Pin_11
 
-#define  UV_ON			GPIOB->BSRR = GPIO_Pin_10
-#define	 UV_OFF 		GPIOB->BRR = GPIO_Pin_10
 
 #define  CS_HIGH 		GPIOA->BSRR=GPIO_Pin_11
 #define  CS_LOW			GPIOA->BRR=GPIO_Pin_11
