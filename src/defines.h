@@ -7,12 +7,26 @@
 #define MB_TIMEOUT 200
 #define F_CPU   72000000UL
 // для этой прошивки и этого устройства, согласно таблице кодов устройств ЭО-76
-#define DEVUNIQNUMBER	4		
+#define DEVUNIQNUMBER	4
+
+#define VALID_RESET_CODE	1111
+#define CONF_PASSWORD   /*0*/208
+#define RETURN_FROM_MENU	10
+
+//маска для проверки включенных ламп.
+static const int  LAMPS_MASK[10] =
+{
+	0x01, 0x03,0x07,0x0f,0x1f,0x3f,0x7f,0xff,0x1ff,0x3ff
+};
 
 // временно 30 для отладки
 #define UART_BUF_SIZE 30
 // число не ноль и не 0xFF00
 #define NOT_0_AND_NOT_0xFF00 0xFFFF
+
+#define MAX_LAMPS_QTY       122
+#define MAX_EXP_BOARD_QTY	12
+#define UF100PERCENT_BEGIN	0x0010
 
 
 #define	SetBit(reg, bit)		reg |= (1<<bit)
@@ -104,6 +118,13 @@ typedef union {
     uint16_t val;
 } uartset_t;
 
+typedef struct {
+    bool Board   :1;
+    bool Temp    :1;
+    bool UV      :1;
+    uint16_t dcb :13;
+} Exsist_t;
+
 // структура данных, хранящейся в еепром
 struct EEPROMst{
 	uint16_t 	DevN;	    // зав номер устройства
@@ -112,7 +133,10 @@ struct EEPROMst{
     uint16_t    Tmax;
     uint16_t    UFmin;
     uint16_t    LampsQty;
-	uint16_t	UFmax;      // Максимальное значение с датчика за всё время работы 
+    uint16_t	UFmax;      // Максимальное значение с датчика за всё время работы 
+    uint16_t    Name;
+    uint16_t    Trec;       // температура восстановления
+    Exsist_t    Sens;       // флаги наличия датчиков
 };
 
 

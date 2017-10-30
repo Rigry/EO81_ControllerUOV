@@ -1,5 +1,4 @@
 #include "func.h"       // объявления функций, чтоб не засорять
-#include "device_config.h"
 #include "display.h"
 #include "menu.h"
 #include "keyboard.h"
@@ -26,7 +25,7 @@ volatile bool device_busy=false;
 bool TxCompleted=false;
 uint16_t lamps;
 // счетчик наработки в часах
-uint16_t hourcounter[TOTAL_LAMPS];
+uint16_t hourcounter[MAX_LAMPS_QTY];
 // счетчик для возврата из меню
 volatile uint8_t return_counter;
 
@@ -73,9 +72,9 @@ struct servicelog
 struct UartBufSt mbMasterUART;
 uint16_t MBUfLevel;
 uint16_t MBTemperature;
-uint16_t BadLamps[EXP_BOARD+1];	//флаги неработающих ламп (+1 на случай, если EXP_BOARD = 0, значение [0] для базовой платы)
-uint16_t WorkCount[EXP_BOARD+1][10];	//наработка ламп [0][] - для базовой платы
-uint16_t LampsQty[EXP_BOARD+1];
+uint16_t BadLamps[MAX_EXP_BOARD_QTY+1];	//флаги неработающих ламп (+1 на случай, если EXP_BOARD = 0, значение [0] для базовой платы)
+uint16_t WorkCount[MAX_EXP_BOARD_QTY+1][10];	//наработка ламп [0][] - для базовой платы
+uint16_t LampsQty[MAX_EXP_BOARD_QTY+1];
 
 // Слейв
 struct UartBufSt mbSlaveUART;
@@ -87,6 +86,8 @@ volatile struct EEPROMst eeprom;
 
 // Значение 100% УФ			
 uint16_t UF100Percent;
+
+uint8_t EXP_BOARD;
 
 
 #define  US_ON	    	GPIOB->BSRR = GPIO_Pin_11; \
@@ -137,9 +138,7 @@ int main (void)
     DeviceState.flags.disp_red = 1; 	
     ALARM_LED_RESET; US_LED_RESET; UV_LED_RESET;
  
-    spi_init();
-    get_pars();					
-    
+
     // значения в еепром по умолчанию
     if (!EEPROMRead(&eeprom)) {
         eeprom.DevN     = 0;
@@ -148,11 +147,20 @@ int main (void)
         eeprom.uartset.bits.parityEven = false;
         eeprom.uartset.bits.stopBitsMinus1 = 0;
         eeprom.uartset.bits.boud = bd9600;
-        eeprom.Tmax     = UF_OFF_TEMP;
+        eeprom.Tmax     = 55;
         eeprom.UFmin    = 40;
-        eeprom.LampsQty = TOTAL_LAMPS;
+        eeprom.LampsQty = MAX_LAMPS_QTY;
         eeprom.UFmax    = UF100PERCENT_BEGIN;
+        eeprom.Name     = 0;
+        eeprom.Trec     = 20;
+        eeprom.Sens.Board = true;
+        eeprom.Sens.Temp  = true;
+        eeprom.Sens.UV    = true;
     }
+    EXP_BOARD = eeprom.LampsQty / 10;
+
+    spi_init();
+    get_pars();		
 
     MBslaveInit();
 
@@ -310,7 +318,12 @@ uint16_t get_lamps(uint8_t board_num)
         lamps = GPIOA->IDR & 0xFF;          //EPRA[7:0]
         lamps |= (GPIOC->IDR & 0x30) << 4;  //EPRA[9:8]
         //возвращаем состояние порта ламп по маске подключенных ламп
-        return  ( lamps & LAMPS_MASK[LAMPS_INST-1] );
+        uint8_t lamps_inst = 0;
+        lamps_inst = eeprom.LampsQty;
+        if (lamps_inst > 10) {
+            lamps_inst = 10;
+        }
+        return  ( lamps & LAMPS_MASK[lamps_inst-1] );
     } else { 
         return BadLamps[board_num];
     }
@@ -320,11 +333,15 @@ uint8_t get_lamps_count(uint8_t plata)
 {
     uint8_t lamps_count = 0;
     DeviceState.flags.alarm_comm = 0;
-    if (plata == 0) { // адрес базовой платы
-        lamps_count = LAMPS_INST;
-    } else if (plata <= EXP_BOARD) { 
-        lamps_count = LampsQty[plata];	
+    if (plata == 0) {
+        lamps_count = eeprom.LampsQty;
+    } else if (eeprom.LampsQty > plata*10) {
+        lamps_count = eeprom.LampsQty - plata*10;
     }
+    if (lamps_count > 10) {
+        lamps_count = 10;
+    }
+
     return lamps_count;
 }
 
@@ -354,7 +371,7 @@ void save_pars(void)
     
     __disable_irq();
         
-    for(i = 0; i < TOTAL_LAMPS; i++) {
+    for(i = 0; i < eeprom.LampsQty; i++) {
         EEWrite(addr, hourcounter[i] & 0xFF );//LSB writing
         addr++; 
         EEWrite(addr, (hourcounter[i]>>8) & 0xFF);//MSB writing
@@ -386,7 +403,7 @@ void get_pars()		//ДК: читает чтото (наработка ламп т
     
     __disable_irq();
     
-    for(i = 0; i < TOTAL_LAMPS; i++) {
+    for(i = 0; i < eeprom.LampsQty; i++) {
         hourcounter[i] = EERead(addr);//LSB writing
         addr++;
         hourcounter[i] |= (EERead(addr) << 8);//MSB writing
@@ -457,7 +474,7 @@ void MBMasterWork(void)
                 // перевод из маски на 10 в маску на 16
                 // подумать еще с установкой, тут явно неверно
                 // перенести туда, когда пришёл норм ответ от платы расширения
-                for (uint32_t i = 0; i < (TOTAL_LAMPS - 10); i++) {
+/*                for (uint32_t i = 0; i < (eeprom.LampsQty - 10); i++) {
                     uint8_t board;
                     board = i / 10 + 1;
                     bool tmp;
@@ -465,7 +482,7 @@ void MBMasterWork(void)
                     uint8_t reg;
                     reg = (i + 10) / 16;
                     SetBit(mbSlave.RegOut[reg + FlagLamps1], (uint16_t)tmp << ( (i + 10) % 16) );
-                }
+                }*/
 
             } else {
                 eSt = ExpRead;
@@ -677,7 +694,7 @@ void WorkCheckAndLeds (void)
         }		
                         
         //если установлена плата датчиков температуры и УФ- проверяем уровни 		
-        if (UF_T_BOARD)	{	
+        if (eeprom.Sens.Board)	{	
             //проверяем уровень УФ	
             uf_level=get_uf_level();	//получаем уровень УФ	
             if (uf_level>100) {
@@ -698,7 +715,7 @@ void WorkCheckAndLeds (void)
             }
             temperatura=get_temp();//получаем температуру воды				 
             //проверяем уровень температуры				 
-            if (temperatura>UF_OFF_TEMP) { //если температура больше порога срабатывания защиты
+            if (temperatura > eeprom.Tmax) { //если температура больше порога срабатывания защиты
                 if (!DeviceState.flags.alarm_temp) { //если тревога не установлена 
                     //  зажигаем тревогу
                     DeviceState.flags.alarm_temp=1;// устанавливаем  флаг температуры
@@ -720,7 +737,7 @@ void WorkCheckAndLeds (void)
                 ///////////////////////////////////////////
             } else { //если температура меньше порога аварии
                 //если установлен флаг Авария по температуре и температура опустилась ниже нижней границы отключения уф
-                if ((DeviceState.flags.alarm_temp)&&(temperatura<UF_ON_TEMP)) {
+                if (DeviceState.flags.alarm_temp && (temperatura < eeprom.Trec)) {
                     DeviceState.flags.alarm_temp=0;
                     DeviceState.flags.disp_upd=1;
                     UV_LED_SET;
@@ -747,7 +764,7 @@ void WorkCheckAndLeds (void)
 void Menu (void)
 {
     if (DeviceState.flags.disp_upd || DeviceState.flags.disp_red) { // если выставлен флаг обновления дисплея-обновляем дисплей
-        if (UF_T_BOARD) {
+        if (eeprom.Sens.Board) {
             temperatura = get_temp();
             uf_level = get_uf_level();
             if (uf_level > 100) {
@@ -782,7 +799,7 @@ void MBslaveInit (void)
     mbSlave.RegOut[mbadr] = mbSlaveAdr;
     mbSlave.RegOut[Tmax] = eeprom.Tmax;
     mbSlave.RegOut[UFmin] = eeprom.UFmin;
-    mbSlave.RegOut[LampsQtyMB] = TOTAL_LAMPS;
+    mbSlave.RegOut[LampsQtyMB] = eeprom.LampsQty;
     mbSlave.RegOut[UFmax] = eeprom.UFmax;
 
     // mbadrset может быть установлен в 0, потому для регистрации запоминаем

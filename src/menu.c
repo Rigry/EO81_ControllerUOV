@@ -1,32 +1,67 @@
 /**
- *      должна быть в кодировки windows-1251
+ *      должна быть в кодировке windows-1251
  */
 #include <stdbool.h>
 #include "menu.h"
 #include "display.h"
 #include "keyboard.h"
-#include "device_config.h"
 #include "communic.h"
-#include "eeprom.h"
-#include "MBSlave.h"
+#include "eeprom.h"     // dk
+#include "MBSlave.h"    // dk
+#include "defines.h"    // dk
 
 //Число строк дисплея
-#define MAX_LINES				4 
+#define MAX_LINES   4 
 //Флаги обновления дисплея и нажатия кнопки
-#define REDRAW				0x02
-#define KEY						0x01
-#define	MENU_BACK			0x04
+#define REDRAW      0x02
+#define KEY         0x01
+#define	MENU_BACK   0x04
+
+char* models[] = {
+    "УОВ-ПВ-1   ",     // 0
+    "УОВ-ПВ-5   ",
+    "УОВ-ПВ-10  ",
+    "УОВ-ПВ-15  ",
+    "УОВ-ПВ-30  ",
+    "УОВ-ПВ-50  ",
+    "УОВ-ПВ-100 ",
+    "УОВ-ПВ-150 ",
+    "УОВ-ПВ-200 ",
+    "УОВ-ПВ-300 ",
+    "УОВ-ПВ-500 ",
+    "УОВ-ПВ-700 ",
+    "УОВ-ПВ-1000",
+    "УОВ-ПВ-1500",
+    "УОВ-СВ-5   ",
+    "УОВ-СВ-10  ",
+    "УОВ-СВ-15  ",
+    "УОВ-СВ-30  ",
+    "УОВ-СВ-50  ",
+    "УОВ-СВ-100 ",
+    "УОВ-СВ-150 ",
+    "УОВ-СВ-200 ",
+    "УОВ-СВ-300 ",
+    "УОВ-СВ-500 ",
+    "УОВ-СВ-700 ",
+    "УОВ-СВ-1000",
+    "УОВ-СВ-1500"   // 26
+};
+char* exist[] = {
+    "отсутствует ",
+    "присутствует"
+};
+char* nullName[] = { 0 };
 
 struct flags
 {
-			uint8_t uf_on		   :1;
-      uint8_t uzg_on		 :1;
-      uint8_t alarm_uf	 :1;
-      uint8_t alarm_lamp :1;
-      uint8_t alarm_temp :1;
-      uint8_t alarm_comm :1;
-			uint8_t disp_upd   :1;
-			uint8_t disp_red	 :1;
+    uint8_t uf_on       :1;
+    uint8_t uzg_on      :1;
+    uint8_t alarm_uf    :1;
+    uint8_t alarm_lamp  :1;
+    uint8_t alarm_temp  :1;
+    uint8_t alarm_comm  :1;
+    uint8_t disp_upd    :1;
+    uint8_t disp_red    :1;
 } ;
 struct servicelog 
 {
@@ -51,8 +86,11 @@ extern void UNPACK(uint8_t *BUF);
 extern void save_pars(void);
 //extern volatile uint8_t uf_threshold;
 extern volatile struct EEPROMst eeprom;
+extern struct MBRegSt mbSlave;
 extern volatile uint8_t return_counter;//счетчик для возврата из меню
 //void narabotka(uint8_t plata,uint16_t *countarray);
+extern uint8_t EXP_BOARD;
+
 
 // пункты меню
 char *menu_items[] = { "Наработка",
@@ -62,11 +100,22 @@ char *menu_items[] = { "Наработка",
 	                 };
 
 struct menu_item {
+    // строка за названием меню
     char *menu_item;
+    // номер меню, куда переходим при нажатии на ввод
     char podmenu;
+    // номер меню, куда возвращаемся
     char prevmenu;
-    char (*function) (void);
-};	
+    // функция, вызываемая при нажатии на ввод
+    char (*function) (char menu);
+};
+/*
+enum {
+    null = 0,
+    root = 1,
+    config = 3,
+    config_change1 = 8
+};*/
 
 const struct menu_item  root_menu[] =
 {   //menu item	  		podmenu     prevmenu    функция вызываемая данным пунктом
@@ -100,6 +149,7 @@ const struct menu_item config_menu[] =
 {   //menu item             podmenu     prevmenu    функция вызываемая данным пунктом
     {"Просмотр конф.-ии",   0,          1,          config},
     {"Настройки",           0,          1,          setup_device},
+    {"Настройки конф.",     0,          1,          logg_reset},
     {0},
 };
 const struct menu_item log_menu[] =
@@ -115,6 +165,28 @@ const struct menu_item alarms_menu[] =
     {"Сбросить аварии",     0,          1,          reset_alarms},
     {0},
 };
+const struct menu_item conf_change1_menu[] =
+{   //menu item             podmenu     prevmenu    функция вызываемая данным пунктом
+    {"Кол-во ламп",         0,          3,          setLampsQty},
+    {"Сброс максимума УФ",  0,          3,          resetMaxUF},
+    {"Модель",              0,          3,          setName},
+    {"Еще",                 9,          8,          0},
+    {0},
+};
+const struct menu_item conf_change2_menu[] =
+{   //menu item             podmenu     prevmenu    функция вызываемая данным пунктом
+    {"Макс температура",    0,          8,          setTmax},
+    {"Температура восст",   0,          8,          setTrec},
+    {"Еще",                 10,         8,          0},
+    {0},
+};
+const struct menu_item conf_change3_menu[] =
+{   //menu item             podmenu     prevmenu    функция вызываемая данным пунктом
+    {"Плата датчиков",      0,          8,          setSensBoard},
+    {"Датчик температуры",  0,          8,          setTempSense},
+    {"Датчик УФ",           0,          8,          setUVsense},
+    {0},
+};
 // массив указателей на структуру типа menu_item
 // обращаться будем так  menu[имя меню][номер пункта].элемент меню
 const struct menu_item *menu[] = {  0,
@@ -124,7 +196,10 @@ const struct menu_item *menu[] = {  0,
                                     log_menu,       // 4
                                     alarms_menu,    // 5
                                     narreset_menu,  // 6
-                                    narresal_menu   // 7
+                                    narresal_menu,  // 7
+                                    conf_change1_menu,   // 8
+                                    conf_change2_menu,   // 9
+                                    conf_change3_menu    // 10
                                  };
 
 void display_main_screen(void)//Функция отображения главного дисплея
@@ -135,9 +210,9 @@ void display_main_screen(void)//Функция отображения главного дисплея
         lcd_clear();
         // set cursor(x,y);где x-эт столбец,а y-это строка,нумерация от 0 и по х и по y;			
         set_cursor (5,0);	
-        lcd_print (UOV_NAME);
+        lcd_print (models[eeprom.Name]);
         set_cursor (0,1);	
-        sprintf(stroka,"Ламп :%d",TOTAL_LAMPS); 
+        sprintf(stroka,"Ламп :%d",eeprom.LampsQty); 
         lcd_print (stroka);
         set_cursor (0,2);
         lcd_print ("Авария:");
@@ -163,11 +238,11 @@ void display_main_screen(void)//Функция отображения главного дисплея
         sprintf(stroka,"     ");
     lcd_print (stroka);
     // если есть плата датчиков тогда выводим информацию с датчиков
-    if(UF_T_BOARD!=0) {
+    if (eeprom.Sens.Board) {
         //выводим температуру			
         set_cursor (0,3);
         //lcd_print ("                    ");
-        if (T_SENS_PRESENT != 0) {
+        if (eeprom.Sens.Temp) {
             set_cursor (0,3);
             if (temperatura<10) {
                 sprintf(stroka,"t=%d",temperatura); 
@@ -177,7 +252,7 @@ void display_main_screen(void)//Функция отображения главного дисплея
         lcd_print (stroka);
 		}
         //выводим уровень УФ		
-        if (UF_SENS_PRESENT !=0 ) {
+        if (eeprom.Sens.UV) {
             set_cursor (5,3);
             if (uf_level < 10) {
                 sprintf(stroka,"УФ=%d%%  ",uf_level);
@@ -223,7 +298,7 @@ void display_menu(void)
     uint8_t line, menu_num, menu_ind, STATE;
     volatile uint8_t max_item, cursor;
     menu_num = 1;//указываем на root_menu
-    menu_ind=0;//стартовать с 0 пункта
+    menu_ind = 0;//стартовать с 0 пункта
     cursor=0;
     lcd_clear();
     STATE = REDRAW | KEY | MENU_BACK;
@@ -294,7 +369,7 @@ void display_menu(void)
                         //если подменю нет зато есть функция-вызываем
                     } else if (menu[menu_num][cursor].function != 0) {
                         // функция возвращает нам номер меню куда возвращаться
-                        menu_num = menu[menu_num][cursor].function();
+                        menu_num = menu[menu_num][cursor].function(menu_num);
                         menu_ind = 0;
                         cursor = 0;
                         // //флаг нажатия на кнопку,обн.дисплея и возврата в меню установить
@@ -329,7 +404,7 @@ void display_menu(void)
 /////////////////////////////////////////////////////////////////////////////////
 		
 
-char alarms(void)
+char alarms(char menu)
 {
     uint8_t  i,j,STATE;
     uint8_t  dead_lamps;
@@ -417,9 +492,10 @@ char alarms(void)
 /////////////////////////////////////////////////////////////////////////////////////////
 //                  КОНЕЦ ТРЕВОГ 
 /////////////////////////////////////////////////////////////////////////////////////////
-char alarmsRS(void)
+char alarmsRS(char menu)
 	{
-			uint8_t   i,STATE;
+            uint8_t   i,STATE;
+            STATE = 0;
 			volatile	uint32_t delaycnt=0x1FFFF; 
 			char string[21];
 			DeviceState.alarm_comm=0; 
@@ -428,7 +504,7 @@ char alarmsRS(void)
 			//вывод 
 			lcd_clear();
 			set_cursor (0,0);
-		  sprintf(string,"RS485: EXP.%d UFT.%d",EXP_BOARD,UF_T_BOARD);
+		  sprintf(string,"RS485: EXP.%d UFT.%d",EXP_BOARD,eeprom.Sens.Board);
 			lcd_print(string);
 			set_cursor(0,1);
 			
@@ -500,211 +576,210 @@ char alarmsRS(void)
 			}
 				
 	}	
-char config(void)
-	{
-			uint8_t   STATE;
-			uint8_t  max_lamps=0;
-			 
-			char string[21];
-			max_lamps=LAMPS_INST;//Плюсуем базовую плату с ее лампами
-			if(EXP_BOARD>0)//если есть платы расширения
-			{
-				max_lamps=max_lamps+((EXP_BOARD-1)*10);
-				max_lamps=max_lamps+get_lamps_count(EXP_BOARD);
-			}
-			lcd_clear();
-			STATE=KEY;
-			//вывод 
-			lcd_clear();
-			set_cursor (0,0);
-			lcd_print("Конфигурация системы");
-			set_cursor (0,1);
-			sprintf(string,"Всего ламп: %d",max_lamps);
-			lcd_print(string);
-								
-			sprintf(string,"Плат расширения: %d",EXP_BOARD);
-			set_cursor (0,2);
-			lcd_print(string);
-								
-			if(UF_T_BOARD) sprintf(string,"Плата УФ и Темп: +");
-			else sprintf(string,"Плата УФ и Темп: -");
-			set_cursor (0,3);
-			lcd_print(string);
-			return_counter=0;
-			while(1)
-			{
-					if (return_counter>RETURN_FROM_MENU) return 3;
-					if(STATE &  REDRAW) //если установлен флаг обновления дисплея- выводим меню или подменю
-					{
-					
-						STATE&=(~REDRAW);
-					}
-					
-					if(STATE&KEY)//
-					{
-						 
-						STATE&=(~KEY);	 
-					}
-					
-				  Keyboard();
-					switch (kb)
-					{
-					
-						 case UP_PRESS: // 
-								{
-									 
-								}
-						 break;
-						  
-								
-						 case DOWN_PRESS: // 
-								{		
-									 
-								}
-						 break;
-						  
-						 
-						 case ENTER_RELEASE: 		// по отусканию кнопки  
-								{
-									 
-								}
-						 break;
-								
-						 case ENTER_HOLD: 		// по длительному нажатию - выходим в преддущее меню
-								{
-									return 3;
-								}
-						 break;
-					
-					}//switch end
-				
-			}
-			
-		 
-	}
-char narab(void)
-	{
-			uint8_t  STATE;
-			uint8_t  cursor;
-			volatile uint8_t  plata=0;//номер платы с которой считываем наработку 
-			uint8_t  lamps_in_board=LAMPS_INST;
-	//		uint16_t hcounter[10];
-			char string[21];
-			cursor=0;
-			lcd_clear();
-			STATE=REDRAW|KEY|MENU_BACK;
-			//вывод страницы меню 
-			lcd_clear();
-			set_cursor (0,0);
-			lcd_print("Наработка Плата");
-			set_cursor (0,1);
-			lcd_print("Лампа ");
-			set_cursor (0,2);		// 
-			lcd_print("Лампа "); 
-		  set_cursor(0,3);
-		  lcd_print("Лампа ");
-			return_counter=0;
-		 	while(1)
-			{
-					if (return_counter>RETURN_FROM_MENU) return 2;
-					if(STATE &  REDRAW) //если установлен флаг обновления дисплея- выводим меню или подменю
-					{
-							lamps_in_board=get_lamps_count(plata);//получаем количество ламп на плате
-						  //narabotka(plata,hcounter); //считываем наработку от платы (когда напишется ф-я заменить в ввыводе хауркаунтер на переменную)
-						  set_cursor(15,0);
-							sprintf(string,"  %02d",plata);//выводим адрес платы i*10+1+j
-							lcd_print(string);
-														
-							set_cursor(0,1);
-							sprintf(string,"Лампа %02d   %05d  ",plata*10 +cursor+1,hourcounter[(plata*10+cursor)]);//hcounter[(cursor)]);//выводим номер лампы и наработку
-							lcd_print(string);
-							
-							set_cursor(0,2);
-							if((cursor+1)<(lamps_in_board))
-								{
-									sprintf(string,"Лампа %02d   %05d  ",plata*10+cursor+2,hourcounter[(plata*10+cursor+1)]);//hcounter[(cursor+1)]);//выводим номер лампы и наработку
-								}
-								else sprintf(string,"                    ");
-							lcd_print(string);
-							
-							set_cursor(0,3);
-							if((cursor+2)<(lamps_in_board))
-								{
-										sprintf(string,"Лампа %02d   %05d  ",plata*10+cursor+3,hourcounter[(plata*10+cursor+2)]);//hcounter[(cursor+2)]);//выводим номер лампы и наработку
-								}
-								else sprintf(string,"                    ");
-							lcd_print(string);
-						
-							STATE&=(~REDRAW);
-							return_counter=0;
-					}
-					
-					if(STATE&KEY)//выводим курсор
-					{
-						 
-					}
-					
-				  Keyboard();
-					switch (kb)
-					{
-					
-						 case UP_PRESS: // 
-								{
-									 if (cursor>0) cursor--; //если текущая позиция курсора не ноль- уменьшаем
-									 else 
-									 {
-										 if(plata>0)
-										 {
-											 plata--;
-										  lamps_in_board=get_lamps_count(plata);
-											cursor=lamps_in_board-1-2;//lamps_in_board(plata)-2;
-										 }
-										 
-									 }
-									 STATE|=REDRAW;//флаг обновл. экрана установить
-								}
-						 break;
-								
-						 case DOWN_PRESS: // 
-								{		//если позиция курсора не больше максимального числа установленных ламп
-										if (cursor<(lamps_in_board-1-2)) cursor++; 
-										else 
-										{
-											if(plata<EXP_BOARD)
-											{
-												plata++;
-												cursor=0;
-												lamps_in_board=get_lamps_count(plata);
-											}
-											
-										}
-										STATE|=REDRAW;//флаг обновл. экрана  установить
-								}
-						 break;
-						 
-						 case ENTER_RELEASE: 		// по отусканию кнопки - выходим из показа аварий
-								{
-									 if(plata<EXP_BOARD)plata++; //перебираем наши платы
-									 else plata=0;
-									 cursor=0;
-									 STATE|=REDRAW;
-								}
-						 break;
-								
-						 case ENTER_HOLD: 		// по длительному нажатию - просто дрочим
-								{
-										return 2; //2-это индекс нашего меню откуда мы пришли
-								}
-						 break;
-					
-					}//switch end
-				
-			}
-	}	
-char reset_nar_all(void)//сброс наработки всех подклченных ламп в системе
+char config(char menu)
+{
+    uint8_t   STATE;
+    uint8_t expBoard = eeprom.LampsQty / 10;
+
+    char string[21];
+
+
+    lcd_clear();
+    STATE=KEY;
+    //вывод 
+    lcd_clear();
+    set_cursor (0,0);
+    lcd_print("Конфигурация системы");
+    set_cursor (0,1);
+    sprintf(string,"Всего ламп: %d",eeprom.LampsQty);
+    lcd_print(string);
+                        
+    sprintf(string,"Плат расширения: %d",expBoard);
+    set_cursor (0,2);
+    lcd_print(string);
+    
+    set_cursor (0,3);
+    if (eeprom.Sens.Board)
+        lcd_print("Плата УФ и Темп: +");
+    else
+        lcd_print("Плата УФ и Темп: -");
+
+    return_counter=0;
+    while(1)
+    {
+            if (return_counter>RETURN_FROM_MENU) return 3;
+            if(STATE &  REDRAW) //если установлен флаг обновления дисплея- выводим меню или подменю
+            {
+            
+                STATE&=(~REDRAW);
+            }
+            
+            if(STATE&KEY)//
+            {
+                    
+                STATE&=(~KEY);	 
+            }
+            
+            Keyboard();
+            switch (kb)
+            {
+            
+                    case UP_PRESS: // 
+                        {
+                                
+                        }
+                    break;
+                    
+                        
+                    case DOWN_PRESS: // 
+                        {		
+                                
+                        }
+                    break;
+                    
+                    
+                    case ENTER_RELEASE: 		// по отусканию кнопки  
+                        {
+                                
+                        }
+                    break;
+                        
+                    case ENTER_HOLD: 		// по длительному нажатию - выходим в преддущее меню
+                        {
+                            return 3;
+                        }
+                    break;
+            
+            }//switch end
+        
+    }
+        
+        
+}
+char narab(char menu)
+{
+    uint8_t  STATE;
+    uint8_t  cursor;
+    volatile uint8_t  plata=0;//номер платы с которой считываем наработку 
+    uint8_t  lamps_in_board;
+    lamps_in_board = eeprom.LampsQty;
+    if (lamps_in_board > 10) {
+        lamps_in_board = 0;
+    }
+    char string[21];
+    cursor=0;
+    lcd_clear();
+    STATE=REDRAW|KEY|MENU_BACK;
+    //вывод страницы меню 
+    lcd_clear();
+    set_cursor (0,0);
+    lcd_print("Наработка Плата");
+    set_cursor (0,1);
+    lcd_print("Лампа ");
+    set_cursor (0,2);		// 
+    lcd_print("Лампа "); 
+    set_cursor(0,3);
+    lcd_print("Лампа ");
+    return_counter=0;
+    while(1) {
+        if (return_counter>RETURN_FROM_MENU)
+            return 2;
+        if (STATE &  REDRAW) { //если установлен флаг обновления дисплея- выводим меню или подменю
+                lamps_in_board=get_lamps_count(plata);//получаем количество ламп на плате
+                //narabotka(plata,hcounter); //считываем наработку от платы (когда напишется ф-я заменить в ввыводе хауркаунтер на переменную)
+                set_cursor(15,0);
+                sprintf(string,"  %02d",plata);//выводим адрес платы i*10+1+j
+                lcd_print(string);
+                                            
+                set_cursor(0,1);
+                sprintf(string,"Лампа %02d   %05d  ",plata*10 +cursor+1,hourcounter[(plata*10+cursor)]);//hcounter[(cursor)]);//выводим номер лампы и наработку
+                lcd_print(string);
+                
+                set_cursor(0,2);
+                if((cursor+1)<(lamps_in_board))
+                    {
+                        sprintf(string,"Лампа %02d   %05d  ",plata*10+cursor+2,hourcounter[(plata*10+cursor+1)]);//hcounter[(cursor+1)]);//выводим номер лампы и наработку
+                    }
+                    else sprintf(string,"                    ");
+                lcd_print(string);
+                
+                set_cursor(0,3);
+                if((cursor+2)<(lamps_in_board))
+                    {
+                            sprintf(string,"Лампа %02d   %05d  ",plata*10+cursor+3,hourcounter[(plata*10+cursor+2)]);//hcounter[(cursor+2)]);//выводим номер лампы и наработку
+                    }
+                    else sprintf(string,"                    ");
+                lcd_print(string);
+            
+                STATE&=(~REDRAW);
+                return_counter=0;
+        }
+        
+        if(STATE&KEY)//выводим курсор
+        {
+                
+        }
+        
+        Keyboard();
+        switch (kb)
+        {
+        
+                case UP_PRESS: // 
+                    {
+                            if (cursor>0) cursor--; //если текущая позиция курсора не ноль- уменьшаем
+                            else 
+                            {
+                                if(plata>0)
+                                {
+                                    plata--;
+                                lamps_in_board=get_lamps_count(plata);
+                                cursor=lamps_in_board-1-2;//lamps_in_board(plata)-2;
+                                }
+                                
+                            }
+                            STATE|=REDRAW;//флаг обновл. экрана установить
+                    }
+                break;
+                    
+                case DOWN_PRESS: // 
+                    {		//если позиция курсора не больше максимального числа установленных ламп
+                            if (cursor<(lamps_in_board-1-2)) cursor++; 
+                            else 
+                            {
+                                if(plata<EXP_BOARD)
+                                {
+                                    plata++;
+                                    cursor=0;
+                                    lamps_in_board=get_lamps_count(plata);
+                                }
+                                
+                            }
+                            STATE|=REDRAW;//флаг обновл. экрана  установить
+                    }
+                break;
+                
+                case ENTER_RELEASE: 		// по отусканию кнопки - выходим из показа аварий
+                    {
+                            if(plata<EXP_BOARD)plata++; //перебираем наши платы
+                            else plata=0;
+                            cursor=0;
+                            STATE|=REDRAW;
+                    }
+                break;
+                    
+                case ENTER_HOLD: 		// по длительному нажатию - просто дрочим
+                    {
+                            return 2; //2-это индекс нашего меню откуда мы пришли
+                    }
+                break;
+        
+        }//switch end
+    }
+}	
+char reset_nar_all(char menu)//сброс наработки всех подклченных ламп в системе
 	{
 		uint8_t i;
-			for(i=0;i<TOTAL_LAMPS;i++)// обходим все на базовой плате
+			for(i=0;i<eeprom.LampsQty;i++)// обходим все на базовой плате
 					{
 							hourcounter[i]=0;//гасим наработку
 					}
@@ -716,13 +791,13 @@ char reset_nar_all(void)//сброс наработки всех подклченных ламп в системе
 			return 6;
 	}
 	
-char reset_nar_one(void)//Сброс наработки одной лампы выбираемой по номеру
+char reset_nar_one(char menu)//Сброс наработки одной лампы выбираемой по номеру
 	{
 			uint8_t   STATE;
 			uint8_t  max_lamps=0;
 			uint8_t  cursor=1;
 			char string[21];
-			max_lamps=TOTAL_LAMPS;//максимальное число ламп в списке
+			max_lamps=eeprom.LampsQty;//максимальное число ламп в списке
 
 			
 			lcd_clear();
@@ -817,7 +892,7 @@ char reset_nar_one(void)//Сброс наработки одной лампы выбираемой по номеру
 	}
 	
 	
-char logg(void)
+char logg(char menu)
 {
 			uint8_t  STATE;
 //			uint8_t  cursor;
@@ -891,210 +966,304 @@ char logg(void)
 			}
 	}	
 //СБРОС ЛОГА РАБОТЫ
-char logg_reset(void)
+char logg_reset(char menu)
 {
-			uint8_t  STATE;
-			volatile uint8_t  cursor,cntr;
-			volatile uint16_t kod,multy; 
-			char string[21];
-			cursor=0;kod=0;
-			multy=1;cntr=0;
-			lcd_clear();
-			STATE=REDRAW|KEY|MENU_BACK;
-			//вывод страницы меню 
-			lcd_clear();
-			set_cursor (0,0);
-			sprintf(string,"Введите код:" );
-			lcd_print(string);
-			 return_counter=0;
-		 	while(1)
-			{
-					if (return_counter>RETURN_FROM_MENU) return 4;
-					if(STATE &  REDRAW) //если установлен флаг обновления дисплея- выводим меню или подменю
-					{
-							 return_counter=0; 
-							 set_cursor (0,1);
-							 sprintf(string,"  %04d",(kod+multy*cursor));
-							 lcd_print(string);
-						
-							STATE&=(~REDRAW);
-					}
-					
-					if(STATE&KEY)//выводим курсор
-					{
-						 
-					}
-					
-					
-				    Keyboard();
-					switch (kb)
-					{
-					
-						 case UP_PRESS: // 
-								{
-									 if(cursor<9)cursor++;
-									 STATE|=REDRAW;//флаг обновл. экрана установить
-								}
-						 break;
-								
-						 case DOWN_PRESS: // 
-								{		 
-									if(cursor>0)cursor--;	
-									STATE|=REDRAW;//флаг обновл. экрана  установить
-								}
-						 break;
-						 
-						 case ENTER_RELEASE: 		// по отусканию кнопки - сохраняем параметры установки и выходим
-								{
-									 kod+=(cursor*multy);
-									 multy=multy*10;
-									 cntr++;
-									 cursor=0;
-									 if (cntr==4)
-									 {
-										 if(kod==VALID_RESET_CODE)
-										 {
-												 DeviceLog.oncounter=0;
-												 DeviceLog.res_all=0;
-												 DeviceLog.res_log++;
-												 DeviceLog.res_one=0;
-												 save_pars();
-												return 4;
-										 } 
-										 cntr=0;
-										 kod=0;
-										 multy=1;
-										 cursor=0;
-									 }
-									
-									 STATE|=REDRAW;
-								}
-						 break;
-								
-						 case ENTER_HOLD: 		// по длительному нажатию - просто дрочим
-								{
-										return 4; //4-это индекс нашего меню откуда мы пришли
-								}
-						 break;
-					
-					}//switch end
-				
-				
-			}
-	}	 
+    uint8_t  STATE;
+    volatile uint8_t  cursor,cntr;
+    volatile uint16_t kod,multy; 
+    char string[21];
+    cursor=0;kod=0;
+    multy=1;cntr=0;
+    lcd_clear();
+    STATE=REDRAW|KEY|MENU_BACK;
+    //вывод страницы меню 
+    lcd_clear();
+    set_cursor (0,0);
+    sprintf(string,"Введите код:" );
+    lcd_print(string);
+    return_counter=0;
+    while(1)
+    {
+        if ( return_counter > RETURN_FROM_MENU )
+            return menu;
+        //если установлен флаг обновления дисплея- выводим меню или подменю
+        if (STATE &  REDRAW) { 
+            return_counter=0; 
+            set_cursor (0,1);
+            sprintf(string,"  %04d",(kod+multy*cursor));
+            lcd_print(string);
+        
+            STATE &= (~REDRAW);
+        }
+        
+        if (STATE & KEY) //выводим курсор
+        { }
+        
+        Keyboard();
+        switch (kb) {
+        
+            case UP_PRESS: // 
+                if (cursor < 9)
+                    cursor++;
+                    STATE |= REDRAW;//флаг обновл. экрана установить
+                break;
+
+            case DOWN_PRESS: // 
+                if (cursor>0)
+                    cursor--;	
+                STATE |= REDRAW; // флаг обновл. экрана  установить
+                break;
+                
+            case ENTER_RELEASE: // по отусканию кнопки - сохраняем параметры установки и выходим
+                kod += (cursor * multy);
+                multy = multy * 10;
+                cntr++;
+                cursor = 0;
+                if (cntr == 4) {
+                    if ((kod == VALID_RESET_CODE) && (menu == 4))  {
+                        DeviceLog.oncounter = 0;
+                        DeviceLog.res_all = 0;
+                        DeviceLog.res_log++;
+                        DeviceLog.res_one = 0;
+                        save_pars();
+                        return menu;
+                    } else if ((kod == CONF_PASSWORD) && (menu == 3)) {
+                        return 8;
+                    }
+                    cntr = 0;
+                    kod = 0;
+                    multy = 1;
+                    cursor = 0;
+                }
+                STATE|=REDRAW;
+                break;
+                    
+            case ENTER_HOLD: // по длительному нажатию 
+                //4-это индекс нашего меню откуда мы пришли
+                return menu; 
+                break;
+        }//switch end
+    }
+}	 
 
 	
-char setup_device(void)
-	{
-		  uint8_t  STATE;
-			volatile uint8_t  cursor ;
-			 
-			char string[21];
-			cursor=eeprom.UFmin; 
-			 
-			lcd_clear();
-			STATE=REDRAW|KEY|MENU_BACK;
-			//вывод страницы меню 
-			lcd_clear();
-			set_cursor (0,0);
-			sprintf(string,"Тревога УФ:" );
-			lcd_print(string);
-		  set_cursor(0,2);
-			lcd_print("Нажатие   ~ Сохран.");
-			set_cursor(0,3);
-			lcd_print("Удержание ~ Отмена");
-			return_counter=0;
-		 	while(1)
-			{
-					if (return_counter>RETURN_FROM_MENU) return 3;
-					if(STATE &  REDRAW) //если установлен флаг обновления дисплея- выводим меню или подменю
-					{
-							 return_counter=0; 
-							 set_cursor (0,1);
-							 sprintf(string,"  %04d",( cursor));
-							 lcd_print(string);
-						
-							STATE&=(~REDRAW);
-					}
-					
-					if(STATE&KEY)//выводим курсор
-					{
-						 
-					}
-					
-					
-				    Keyboard();
-					switch (kb)
-					{
-					
-						 case UP_PRESS: // 
-								{
-									 if(cursor<99)cursor++;
-									 STATE|=REDRAW;//флаг обновл. экрана установить
-								}
-						 break;
-							
-						 case UP_HOLD: // 
-								{
-									 if(cursor<90)cursor=cursor+10;
-									 else if (cursor<99) cursor++;
-									 STATE|=REDRAW;//флаг обновл. экрана установить
-								}
-						 break;
-								
-						 case DOWN_PRESS: // 
-								{		 
-									if(cursor>0)cursor--;	
-									STATE|=REDRAW;//флаг обновл. экрана  установить
-								}
-						 break;
-								
-						 case DOWN_HOLD: // 
-								{		 
-									if(cursor>10)cursor=cursor-10;
-									else if(cursor>0) cursor--;
-									STATE|=REDRAW;//флаг обновл. экрана  установить
-								}
-						 break;
-						 
-						 case ENTER_RELEASE: 		// по отусканию кнопки - выходим из показа аварий
-								{
-                                    extern struct MBRegSt mbSlave;
-                                    eeprom.UFmin = cursor;
-                                    mbSlave.RegOut[UFmin] = eeprom.UFmin;
-									save_pars();
-									return 3; //4-это индекс нашего меню откуда мы пришли
-									
-									 
-								}
-						 break;
-								
-						 case ENTER_HOLD: 		// по длительному нажатию - просто дрочим
-								{
-									 
-									return 3; //4-это индекс нашего меню откуда мы пришли
-								}
-						 break;
-					
-					}//switch end
-				
-				
-			}
-	}
+char setup_device(char menu)
+{
+    char string[21];
+
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    sprintf(string,"Тревога УФ:" );
+    lcd_print(string);
+
+    menu = set(menu, &(eeprom.UFmin), 0, 99, nullName);
+    extern struct MBRegSt mbSlave;
+    mbSlave.RegOut[UFmin] = eeprom.UFmin;
+    
+    return menu;
+}
+
+char set (char menu, volatile uint16_t* what, uint16_t min, uint16_t max, char* name[]) {
+    uint8_t STATE;
+    STATE = REDRAW | KEY | MENU_BACK;
+    char string[21];
+    volatile uint8_t cursor;
+    cursor = *what;
+    set_cursor(0,2);
+    lcd_print("Нажатие   ~ Сохран.");
+    set_cursor(0,3);
+    lcd_print("Удержание ~ Отмена");
+    return_counter = 0;
+    while(1) {
+        if (return_counter > RETURN_FROM_MENU)
+            return menu;
+        // если установлен флаг обновления дисплея - выводим меню или подменю
+        if(STATE &  REDRAW) {
+            return_counter=0; 
+            set_cursor (0,1);
+            if (name[0] == 0) {
+                sprintf(string,"  %04d",( cursor));
+                lcd_print(string);
+            } else {
+                lcd_print(name[cursor]);
+            }
+            
+            STATE&=(~REDRAW);
+        }
+
+        if(STATE&KEY)//выводим курсор
+        { }
+
+        Keyboard();
+        switch (kb) {
+            case UP_PRESS: // 
+                if (cursor < max)
+                    cursor++;
+                STATE|=REDRAW;//флаг обновл. экрана установить
+                break;
+            
+            case UP_HOLD: // 
+                if ( cursor < (max-9) ) 
+                    cursor = cursor + 10;
+                else if (cursor < max)
+                    cursor++;
+                STATE |= REDRAW;//флаг обновл. экрана установить
+                break;
+                
+            case DOWN_PRESS: // 
+                if (cursor > min)
+                    cursor--;	
+                STATE |= REDRAW; //флаг обновл. экрана  установить
+                break;
+                
+            case DOWN_HOLD: // 
+                if (cursor > min + 10)
+                    cursor = cursor - 10;
+                else if (cursor>min)
+                    cursor--;
+                STATE|=REDRAW;//флаг обновл. экрана  установить
+                break;
+            
+            case ENTER_RELEASE: 		// по отусканию кнопки - выходим из показа аварий
+                *what = cursor;
+                return menu; 
+                break;
+                
+            case ENTER_HOLD:
+                return menu;
+                break;
+        } // switch end
+    }
+}
+
+
+
 		
 		 
  
-char reset_alarms(void)
-	{
-		DeviceState.alarm_uf=0;
-		DeviceState.alarm_lamp=0; 
-		DeviceState.alarm_temp=0;
-		DeviceState.alarm_comm=0;
-		return 5;
-	}
+char reset_alarms(char menu) {
+    DeviceState.alarm_uf=0;
+    DeviceState.alarm_lamp=0; 
+    DeviceState.alarm_temp=0;
+    DeviceState.alarm_comm=0;
+    return 5;
+}
+    
 
+char resetMaxUF(char menu) {
+    eeprom.UFmax = UF100PERCENT_BEGIN;
+    mbSlave.RegOut[UFmax] = UF100PERCENT_BEGIN;
+    return 3;
+}
 
+char setLampsQty (char menu)
+{
+    char string[21];
+    
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    sprintf(string,"Количество ламп:" );
+    lcd_print(string);
 
+    menu = set(menu, &(eeprom.LampsQty), 1, 112, nullName);
+    mbSlave.RegOut[LampsQtyMB] = eeprom.LampsQty;
+    
+    return menu;    
+}
+
+char setName (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Модель:");
+
+    menu = set(menu, &(eeprom.Name), 0, 26, models);
+    
+    return menu;    
+}
+
+char setTmax (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Макс температура:");
+
+    menu = set(menu, &(eeprom.Tmax), 1, 99, nullName);
+    mbSlave.RegOut[Tmax] = eeprom.Tmax;
+    
+    return menu;        
+}
+char setTrec (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Tемпература восстан:");
+
+    menu = set(menu, &(eeprom.Trec), 1, 99, nullName);
+    
+    return menu;        
+}
+
+char setSensBoard (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Плата датчиков:");
+    uint16_t tmp;
+    tmp = eeprom.Sens.Board;
+    menu = set(menu, &(tmp), 0, 1, exist);
+    eeprom.Sens.Board = tmp;
+    if (!eeprom.Sens.Board) {
+        eeprom.Sens.Temp = false;
+        eeprom.Sens.UV = false;
+    };
+    
+    return menu;      
+}
+char setTempSense (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Датчик температуры:");
+    uint16_t tmp;
+    tmp = eeprom.Sens.Temp;
+    menu = set(menu, &(tmp), 0, 1, exist);
+    eeprom.Sens.Temp = tmp;
+    if (eeprom.Sens.Temp) {
+        eeprom.Sens.Board = true;
+    };
+    return menu;
+}
+char setUVsense (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Датчик УФ:");
+    uint16_t tmp;
+    tmp = eeprom.Sens.UV;
+    menu = set(menu, &(tmp), 0, 1, exist);
+    eeprom.Sens.UV = tmp;
+    if (eeprom.Sens.UV) {
+        eeprom.Sens.Board = true;
+    };
+    return menu;
+}
 
 
 

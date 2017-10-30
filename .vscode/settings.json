@@ -11,7 +11,9 @@
         "func.h": "c",
         "crc.h": "c",
         "keyboard.h": "c",
-        "communic.h": "c"
+        "communic.h": "c",
+        "stdint.h": "c",
+        "mbslave.h": "c"
     },
     "clang.cflags": [
         "-Isrc",
