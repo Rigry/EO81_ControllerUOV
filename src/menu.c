@@ -17,6 +17,7 @@
 #define KEY         0x01
 #define	MENU_BACK   0x04
 
+char* nullName[] = { 0 };
 char* models[] = {
     "УОВ-ПВ-1   ",     // 0
     "УОВ-ПВ-5   ",
@@ -50,7 +51,22 @@ char* exist[] = {
     "отсутствует ",
     "присутствует"
 };
-char* nullName[] = { 0 };
+char* boudrate[] = {
+    "9600  ",
+    "14400 ",
+    "19200 ",
+    "28800 ",
+    "38400 ",
+    "57600 ",
+    "76800 ",
+    "115200"
+};
+char* parity[] = {
+    "нечетность",
+    "четность  "  
+};
+
+
 
 struct flags
 {
@@ -150,6 +166,7 @@ const struct menu_item config_menu[] =
     {"Просмотр конф.-ии",   0,          1,          config},
     {"Настройки",           0,          1,          setup_device},
     {"Настройки конф.",     0,          1,          logg_reset},
+    {"Настройки сети",      0,          1,          setupModbus},
     {0},
 };
 const struct menu_item log_menu[] =
@@ -1265,8 +1282,90 @@ char setUVsense (char menu)
     return menu;
 }
 
+char setupModbus (char menu)
+{
+    setAdr(menu);
+    setBoudrate(menu);
+    setParityEn(menu);
+    if (eeprom.uartset.bits.parityEn) {
+        setParity(menu);
+    }
+    setStopBits(menu);
+    return menu;
+}
 
-
-// в прерывании по уарту считываем строку символов начиная от стартового признака(SOH) до конечного признака(ETX)
-//потом патроним данные и пихаем по регистрам
+char setAdr (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Адрес в сети:");
+    uint16_t tmp;
+    tmp = eeprom.mbadr;
+    menu = set(menu, &(tmp), 1, 255, nullName);
+    eeprom.mbadr = tmp;
+    mbSlave.RegOut[mbadr] = tmp;
+    return menu;
+}
+char setBoudrate (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Скорость (боды):");
+    uint16_t tmp;
+    tmp = eeprom.uartset.bits.boud;
+    menu = set(menu, &(tmp), 0, 7, boudrate);
+    eeprom.uartset.bits.boud = tmp;
+    mbSlave.RegOut[uartset] &= ~(0b111 << 3);
+    mbSlave.RegOut[uartset] |= (tmp << 2);
+    return menu;
+}
+char setParityEn (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Контроль четн.:");
+    uint16_t tmp;
+    tmp = eeprom.uartset.bits.parityEn;
+    menu = set(menu, &(tmp), 0, 1, exist);
+    eeprom.uartset.bits.parityEn = tmp;
+    mbSlave.RegOut[uartset] &= ~(0b1 << 0);
+    mbSlave.RegOut[uartset] |= (tmp << 0);
+    return menu;
+}
+char setParity (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Контроль четн.:");
+    uint16_t tmp;
+    tmp = eeprom.uartset.bits.parityEven;
+    menu = set(menu, &(tmp), 0, 1, parity);
+    eeprom.uartset.bits.parityEven = tmp;
+    mbSlave.RegOut[uartset] &= ~(0b1 << 1);
+    mbSlave.RegOut[uartset] |= (tmp << 1);
+    return menu;
+}
+char setStopBits (char menu)
+{
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    lcd_print("Кол-во стоп бит:");
+    uint16_t tmp;
+    tmp = eeprom.uartset.bits.stopBitsMinus1 + 1;
+    menu = set(menu, &(tmp), 1, 2, nullName);
+    eeprom.uartset.bits.stopBitsMinus1 = tmp - 1;
+    mbSlave.RegOut[uartset] &= ~(0b1 << 2);
+    mbSlave.RegOut[uartset] |= ( (tmp - 1) << 2);
+    return menu;
+}
 

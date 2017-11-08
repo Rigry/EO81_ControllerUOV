@@ -24,6 +24,13 @@ char setSensBoard (char menu);
 char setTempSense (char menu);
 char setUVsense (char menu);
 
+char setupModbus (char menu);
+char setAdr (char menu);
+char setBoudrate (char menu);
+char setParityEn (char menu);
+char setParity (char menu);
+char setStopBits (char menu);
+
 
 
 
