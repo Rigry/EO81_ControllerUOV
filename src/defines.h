@@ -26,7 +26,7 @@ static const int  LAMPS_MASK[10] =
 
 #define MAX_LAMPS_QTY       122
 #define MAX_EXP_BOARD_QTY	12
-#define UF100PERCENT_BEGIN	0x0010
+#define UF100PERCENT_BEGIN	0x0300
 
 
 #define	SetBit(reg, bit)		reg |= (1<<bit)

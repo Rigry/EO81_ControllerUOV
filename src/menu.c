@@ -272,7 +272,7 @@ void display_main_screen(void)//Функция отображения главного дисплея
         if (eeprom.Sens.UV) {
             set_cursor (5,3);
             if (uf_level < 10) {
-                sprintf(stroka,"УФ=%d%%  ",uf_level);
+                sprintf(stroka,"УФ=%d%%  ",0);
             } else if (uf_level < 100) {
                 sprintf(stroka,"УФ=%d%% ",uf_level);
             } else {
