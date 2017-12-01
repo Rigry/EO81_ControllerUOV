@@ -1,2 +1,2 @@
-build/
+build/**
 !build/EO81_ControllerUOV.hex
