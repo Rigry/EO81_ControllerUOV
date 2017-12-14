@@ -89,19 +89,26 @@ uint16_t UF100Percent;
 
 uint8_t EXP_BOARD;
 
-
-#define  US_ON	    	GPIOB->BSRR = GPIO_Pin_11; \
-    US_LED_SET; \
+inline void US_ON (void) {
+    GPIOB->BSRR = GPIO_Pin_11;
+    US_LED_SET;
     SET_MASK (mbSlave.RegOut[workFlags], US_ON_WORKFLAGS_MASK);
-#define	 US_OFF 		GPIOB->BRR = GPIO_Pin_11; \
-    US_LED_RESET; \
+}
+inline void US_OFF (void) {
+    GPIOB->BRR = GPIO_Pin_11; 
+    US_LED_RESET; 
     CLEAR_MASK (mbSlave.RegOut[workFlags], US_ON_WORKFLAGS_MASK);
-#define  UV_ON			GPIOB->BSRR = GPIO_Pin_10; \
-    UV_LED_SET; \
+}
+inline void UV_ON (void) {
+    GPIOB->BSRR = GPIO_Pin_10; 
+    UV_LED_SET; 
     SET_MASK (mbSlave.RegOut[workFlags], UV_ON_WORKFLAGS_MASK);
-#define	 UV_OFF 		GPIOB->BRR = GPIO_Pin_10; \
-    UV_LED_RESET; \
+}
+inline void UV_OFF (void) {
+    GPIOB->BRR = GPIO_Pin_10;
+    UV_LED_RESET;
     CLEAR_MASK (mbSlave.RegOut[workFlags], UV_ON_WORKFLAGS_MASK);
+}
 
 int main (void)
 {
@@ -130,7 +137,7 @@ int main (void)
 
     
     ALARM_LED_SET; US_LED_SET; UV_LED_SET; //проверка испарвности индикаторов
-    UV_OFF; US_OFF;
+    UV_OFF(); US_OFF();
     delay_func_init( );			//инициализируем таймер задержек для дисплея BUSY флаг не опрашиваем
     lcd_init();					//Инициализируем дисплей
     lcd_clear();				//Очищаем дисплей
@@ -149,7 +156,7 @@ int main (void)
         eeprom.uartset.bits.boud = bd9600;
         eeprom.Tmax     = 55;
         eeprom.UFmin    = 40;
-        eeprom.LampsQty = MAX_LAMPS_QTY;
+        eeprom.LampsQty = 5;
         eeprom.UFmax    = UF100PERCENT_BEGIN;
         eeprom.Name     = 0;
         eeprom.Trec     = 20;
@@ -359,7 +366,7 @@ inline uint8_t get_uf_level(void)
     } else {
         uint32_t tmp32 = MBUfLevel;
         return (tmp32 * 100 / eeprom.UFmax);
-    }	
+    }
 } 
 
 
@@ -372,9 +379,11 @@ void save_pars(void)
     __disable_irq();
         
     for(i = 0; i < eeprom.LampsQty; i++) {
-        EEWrite(addr, hourcounter[i] & 0xFF );//LSB writing
-        addr++; 
-        EEWrite(addr, (hourcounter[i]>>8) & 0xFF);//MSB writing
+        uint16_t tmp16 = hourcounter[i] - 1;
+        mbSlave.RegOut[Hours1+i] = hourcounter[i];
+        EEWrite(addr, tmp16 & 0xFF );//LSB writing
+        addr++;
+        EEWrite(addr, (tmp16 >> 8) & 0xFF);//MSB writing
         addr++;
     }
          
@@ -408,6 +417,8 @@ void get_pars()		//ДК: читает чтото (наработка ламп т
         addr++;
         hourcounter[i] |= (EERead(addr) << 8);//MSB writing
         addr++;
+        hourcounter[i]++;
+        mbSlave.RegOut[Hours1+i] = hourcounter[i];
     }
     
     DeviceLog.oncounter=EERead(0x100);       //OnCNTR LSB
@@ -563,7 +574,7 @@ void KeyboardAction (void)
         case LEFT_HOLD:  // УФ
             if (DeviceState.flags.uf_on) {
                 UV_LED_RESET;
-                UV_OFF  ;
+                UV_OFF();
                 DeviceState.flags.uf_on=0;
                 DeviceState.flags.disp_upd=1;
             /*	/////////  Посылаем сообщение УФ ВЫКЛ /////
@@ -573,7 +584,7 @@ void KeyboardAction (void)
             */	///////////////////////////////////////////
             } else {
                 UV_LED_SET;
-                UV_ON;
+                UV_ON();
                 DeviceState.flags.uf_on=1;
                 DeviceState.flags.disp_upd=1;
                 DeviceLog.oncounter++;
@@ -589,12 +600,12 @@ void KeyboardAction (void)
         case RIGHT_HOLD:  // УЗГ
             if (DeviceState.flags.uzg_on) {
                 US_LED_RESET;
-                US_OFF;
+                US_OFF();
                 DeviceState.flags.uzg_on=0;
                 DeviceState.flags.disp_upd=1;
             } else {
                 US_LED_SET;
-                US_ON;
+                US_ON();
                 DeviceState.flags.uzg_on=1; 
                 DeviceState.flags.disp_upd=1;
             }
@@ -642,21 +653,21 @@ void MBSlaveAction (void)
 
         if (mbSlave.RegCtrl[US] == NOT_0_AND_NOT_0xFF00) {
         } else if (mbSlave.RegCtrl[US] == 0) {
-            US_OFF;
+            US_OFF();
             DeviceState.flags.uzg_on = 0;
             mbSlave.RegCtrl[US] = NOT_0_AND_NOT_0xFF00;
         } else if (mbSlave.RegCtrl[US] == 0xFF00) {
-            US_ON;
+            US_ON();
             DeviceState.flags.uzg_on = 1;
             mbSlave.RegCtrl[US] = NOT_0_AND_NOT_0xFF00;
         }
         if (mbSlave.RegCtrl[UV] == NOT_0_AND_NOT_0xFF00) {
         } else if (mbSlave.RegCtrl[UV] == 0) {
-            UV_OFF;
+            UV_OFF();
             DeviceState.flags.uf_on = 0;
             mbSlave.RegCtrl[UV] = NOT_0_AND_NOT_0xFF00;
         } else if (mbSlave.RegCtrl[UV] == 0xFF00) {
-            UV_ON;
+            UV_ON();
             DeviceState.flags.uf_on = 1;
             mbSlave.RegCtrl[UV] = NOT_0_AND_NOT_0xFF00;
         }
@@ -724,10 +735,10 @@ void WorkCheckAndLeds (void)
                 }
                 //выключаем ультрафиолет	 
                 UV_LED_RESET;
-                UV_OFF  ;
+                UV_OFF();
                 //Выключаем ультразвук
                 US_LED_RESET;
-                US_OFF;
+                US_OFF();
                 //DeviceState.flags.uf_on=0;
                 DeviceState.flags.disp_upd=1;
                 /////////  Посылаем сообщение УФ ВЫКЛ /////
@@ -741,10 +752,10 @@ void WorkCheckAndLeds (void)
                     DeviceState.flags.alarm_temp=0;
                     DeviceState.flags.disp_upd=1;
                     UV_LED_SET;
-                    UV_ON;
+                    UV_ON();
                     if (DeviceState.flags.uzg_on==1) { //Если УЗГ был включен с кнопки,тогда надо восттановить 
                         US_LED_SET;//Включить светодиод УЗГ
-                        US_ON;//Включить реле УЗГ
+                        US_ON();//Включить реле УЗГ
                     }
                 }
             }
