@@ -20,7 +20,7 @@ static const int  LAMPS_MASK[10] =
 };
 
 // временно 30 для отладки
-#define UART_BUF_SIZE 30
+#define UART_BUF_SIZE 255
 // число не ноль и не 0xFF00
 #define NOT_0_AND_NOT_0xFF00 0xFFFF
 
