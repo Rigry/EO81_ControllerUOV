@@ -271,7 +271,7 @@ void display_main_screen(void)//Функция отображения главного дисплея
         //выводим уровень УФ		
         if (eeprom.Sens.UV) {
             set_cursor (5,3);
-            if (uf_level < 10) {
+            if (uf_level < 10 || (mbSlave.RegOut[workFlags] & UV_ON_WORKFLAGS_MASK == 0)) {
                 sprintf(stroka,"УФ=%d%%  ",0);
             } else if (uf_level < 100) {
                 sprintf(stroka,"УФ=%d%% ",uf_level);

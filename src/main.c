@@ -361,7 +361,7 @@ inline uint8_t get_uf_level(void)
 {
     //	Перевод в проценты
     if (MBUfLevel > eeprom.UFmax) {
-        UF100Percent = MBUfLevel;
+        eeprom.UFmax = MBUfLevel;
         return (100);
     } else {
         uint32_t tmp32 = MBUfLevel;
