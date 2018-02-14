@@ -262,9 +262,9 @@ void display_main_screen(void)//Функция отображения главного дисплея
         if (eeprom.Sens.Temp) {
             set_cursor (0,3);
             if (temperatura<10) {
-                sprintf(stroka,"t=%d",temperatura); 
-            } else {
                 sprintf(stroka,"t=%d ",temperatura); 
+            } else {
+                sprintf(stroka,"t=%d",temperatura); 
             }
         lcd_print (stroka);
 		}
