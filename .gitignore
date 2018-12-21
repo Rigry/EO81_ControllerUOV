@@ -1,2 +1,3 @@
 build/**
 !build/EO81_ControllerUOV.hex
+!build/EO81_ControllerUOV.bin
