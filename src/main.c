@@ -164,7 +164,8 @@ int main (void)
         eeprom.Sens.Temp  = true;
         eeprom.Sens.UV    = true;
     }
-    EXP_BOARD = eeprom.LampsQty / 10;
+    EXP_BOARD = eeprom.LampsQty / 10 + ((eeprom.LampsQty % 10) != 0);
+    if (EXP_BOARD > 0) EXP_BOARD--;
 
     spi_init();
     get_pars();		

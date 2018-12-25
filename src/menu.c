@@ -596,7 +596,6 @@ char alarmsRS(char menu)
 char config(char menu)
 {
     uint8_t   STATE;
-    uint8_t expBoard = eeprom.LampsQty / 10;
 
     char string[21];
 
@@ -611,7 +610,7 @@ char config(char menu)
     sprintf(string,"Всего ламп: %d",eeprom.LampsQty);
     lcd_print(string);
                         
-    sprintf(string,"Плат расширения: %d",expBoard);
+    sprintf(string,"Плат расширения: %d",EXP_BOARD);
     set_cursor (0,2);
     lcd_print(string);
     
