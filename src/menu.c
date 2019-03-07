@@ -105,7 +105,7 @@ extern volatile struct EEPROMst eeprom;
 extern struct MBRegSt mbSlave;
 extern volatile uint8_t return_counter;//счетчик для возврата из меню
 //void narabotka(uint8_t plata,uint16_t *countarray);
-extern uint8_t EXP_BOARD;
+extern uint8_t exp_qty;
 
 
 // пункты меню
@@ -442,9 +442,9 @@ char alarms(char menu)
         if (return_counter>RETURN_FROM_MENU)
             return 5;
         if(STATE &  REDRAW) { //если установлен флаг обновления дисплея- выводим меню или подменю
-            for(i=0;i<=EXP_BOARD;i++) { // перетряхиваем платы
+            for(i=0;i<=exp_qty;i++) { // перетряхиваем платы
                 badlamp=get_lamps(i);	//получаем переменную с битами установленными в 1 соотв.нерабочим лампам
-                for (j=0;j<10;j++) { //обходим эту переменную
+                for (j = 0; j < (i == 0 ? eeprom.LampsQtyMain : 10); j++) { //обходим эту переменную
                     if(badlamp&0x01) {	//если попалась нерабочая лампа
                         if(dead_lamps<=20) { //если еще не засрали все 3 строки нашего монитора:)
                             if ((dead_lamps==6)||(dead_lamps==13)||(dead_lamps==20)) 
@@ -521,25 +521,25 @@ char alarmsRS(char menu)
 			//вывод 
 			lcd_clear();
 			set_cursor (0,0);
-		  sprintf(string,"RS485: EXP.%d UFT.%d",EXP_BOARD,eeprom.Sens.Board);
+		  sprintf(string,"RS485: EXP.%d UFT.%d",exp_qty,eeprom.Sens.Board);
 			lcd_print(string);
 			set_cursor(0,1);
 			
-			RxDataReady=false; 
-			if(EXP_BOARD>0)//если есть платы расширения
-							{
-								for(i=1;i<=EXP_BOARD;i++)
-									{
-										//BUF1[0]= i;//адрес платы расширения
-										//BUF1[1]=LCOUNT;		//Запрос ЧИСЛА ЛАМП
-										//PACK_SEND(BUF1,2);//запаковать и послать
-										while( RxDataReady!=true){delaycnt--;if(delaycnt==0)break;}//ждем прихода пакета,если пакет не пришел-ошибка на шине
+			// RxDataReady=false; 
+			// if(exp_qty>0)//если есть платы расширения
+            // {
+            //     for(i=1;i<=exp_qty;i++)
+            //     {
+            //         //BUF1[0]= i;//адрес платы расширения
+            //         //BUF1[1]=LCOUNT;		//Запрос ЧИСЛА ЛАМП
+            //         //PACK_SEND(BUF1,2);//запаковать и послать
+            //         while( RxDataReady!=true){delaycnt--;if(delaycnt==0)break;}//ждем прихода пакета,если пакет не пришел-ошибка на шине
 
-										if(delaycnt==0){ sprintf(string,"addr.%#x",i);lcd_print(string);DeviceState.alarm_comm=1;}	//выставляем флаг ошибки шины
-										RxDataReady=false;
-									}
-								 
-							}					
+            //         if(delaycnt==0){ sprintf(string,"addr.%#x",i);lcd_print(string);DeviceState.alarm_comm=1;}	//выставляем флаг ошибки шины
+            //         RxDataReady=false;
+            //     }
+                    
+            // }					
 			 
 								
 			return_counter=0; 
@@ -610,7 +610,7 @@ char config(char menu)
     sprintf(string,"Всего ламп: %d",eeprom.LampsQty);
     lcd_print(string);
                         
-    sprintf(string,"Плат расширения: %d",EXP_BOARD);
+    sprintf(string,"Плат расширения: %d",exp_qty);
     set_cursor (0,2);
     lcd_print(string);
     
@@ -762,7 +762,7 @@ char narab(char menu)
                             if (cursor<(lamps_in_board-1-2)) cursor++; 
                             else 
                             {
-                                if(plata<EXP_BOARD)
+                                if(plata<exp_qty)
                                 {
                                     plata++;
                                     cursor=0;
@@ -776,7 +776,7 @@ char narab(char menu)
                 
                 case ENTER_RELEASE: 		// по отусканию кнопки - выходим из показа аварий
                     {
-                            if(plata<EXP_BOARD)plata++; //перебираем наши платы
+                            if(plata<exp_qty)plata++; //перебираем наши платы
                             else plata=0;
                             cursor=0;
                             STATE|=REDRAW;
@@ -1182,11 +1182,23 @@ char setLampsQty (char menu)
     //вывод страницы меню
     lcd_clear();
     set_cursor(0,0);
-    sprintf(string,"Количество ламп:" );
+    sprintf(string,"Кол-во ламп всего:" );
     lcd_print(string);
 
     menu = set(menu, &(eeprom.LampsQty), 1, 112, nullName);
     mbSlave.RegOut[LampsQtyMB] = eeprom.LampsQty;
+    if (eeprom.LampsQtyMain > eeprom.LampsQty)
+        eeprom.LampsQtyMain = eeprom.LampsQty;
+
+    lcd_clear();
+    //вывод страницы меню
+    lcd_clear();
+    set_cursor(0,0);
+    sprintf(string,"Кол-во ламп тут:" );
+    lcd_print(string);
+
+    uint16_t max = eeprom.LampsQty > 10 ? 10 : eeprom.LampsQty;
+    menu = set(menu, &(eeprom.LampsQtyMain), 1, max, nullName);
     
     return menu;    
 }

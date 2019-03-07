@@ -87,7 +87,7 @@ volatile struct EEPROMst eeprom;
 // Значение 100% УФ			
 uint16_t UF100Percent;
 
-uint8_t EXP_BOARD;
+uint8_t exp_qty;
 
 inline void US_ON (void) {
     GPIOB->BSRR = GPIO_Pin_11;
@@ -163,9 +163,10 @@ int main (void)
         eeprom.Sens.Board = true;
         eeprom.Sens.Temp  = true;
         eeprom.Sens.UV    = true;
+        eeprom.LampsQtyMain = eeprom.LampsQty >= 10 ? 10 : eeprom.LampsQty;
     }
-    EXP_BOARD = eeprom.LampsQty / 10 + ((eeprom.LampsQty % 10) != 0);
-    if (EXP_BOARD > 0) EXP_BOARD--;
+    int exp_lamps = eeprom.LampsQty - eeprom.LampsQtyMain;
+    exp_qty = exp_lamps / 10 + ((exp_lamps % 10) != 0);
 
     spi_init();
     get_pars();		
@@ -209,7 +210,7 @@ int main (void)
             hourWorked = false;
             volatile uint16_t badlamp;
             volatile uint8_t lcount;
-            for (uint8_t board = 0; board <= EXP_BOARD; board++) {
+            for (uint8_t board = 0; board <= exp_qty; board++) {
                 badlamp = get_lamps(board);//получаем лампы подключенные к базовой плате
                 lcount = get_lamps_count(board);
                 for (uint8_t i = 0; i < lcount; i++) { // обходим все подключенные лампы
@@ -327,7 +328,7 @@ uint16_t get_lamps(uint8_t board_num)
         lamps |= (GPIOC->IDR & 0x30) << 4;  //EPRA[9:8]
         //возвращаем состояние порта ламп по маске подключенных ламп
         uint8_t lamps_inst = 0;
-        lamps_inst = eeprom.LampsQty;
+        lamps_inst = eeprom.LampsQtyMain;
         if (lamps_inst > 10) {
             lamps_inst = 10;
         }
@@ -480,7 +481,7 @@ void MBMasterWork(void)
     switch (eSt) {
         
         case GetOrder:
-            if (ExpTrasN == EXP_BOARD) {
+            if (ExpTrasN == exp_qty) {
                 eSt = SensTrans;
                 ExpTrasN = 0;
                 // перевод из маски на 10 в маску на 16
@@ -681,7 +682,7 @@ void MBSlaveAction (void)
 void WorkCheckAndLeds (void)
 {
     lamps = 0;
-    for(uint8_t i = 0; i <= EXP_BOARD; i++) {
+    for(uint8_t i = 0; i <= exp_qty; i++) {
         // получаем список ламп подключенных в цикле по или суммируем от плат расширения и затем проверяем
         lamps|=get_lamps(i);
         if (i == 0) {

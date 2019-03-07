@@ -137,6 +137,7 @@ struct EEPROMst{
     uint16_t    Name;
     uint16_t    Trec;       // температура восстановления
     Exsist_t    Sens;       // флаги наличия датчиков
+    uint16_t    LampsQtyMain; // на самой плате
 };
 
 
